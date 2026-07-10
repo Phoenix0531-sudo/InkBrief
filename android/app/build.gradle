@@ -1,0 +1,34 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'dev.inkbrief'
+    compileSdk 35
+    buildToolsVersion "35.0.0"
+
+    defaultConfig {
+        applicationId "dev.inkbrief"
+        minSdkVersion 19
+        targetSdkVersion 21
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // No external dependencies - pure Android API
+}

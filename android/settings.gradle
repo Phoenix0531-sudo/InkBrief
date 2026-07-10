@@ -1,0 +1,3 @@
+// InkBrief Android
+rootProject.name = "InkBrief"
+include(":app")

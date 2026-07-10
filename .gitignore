@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+inkbrief.db
+backend.log
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.apk
+*.aab
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Tools
+tools/jdk/*.zip
+tools/jdk-*/
+!tools/jdk/.gitkeep
+
+# Environment
+.env
+horizon/.env
+*.log
+
+# Android build
+android/app/build/
+android/.gradle/
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradlew
+android/gradlew.bat
+android/gradle.properties
+android/local.properties
+
+# Tools JDK (portable, large)
+tools/jdk-*/
+tools/*.zip
+
+# Gradle from InkQueue (reference)
+.tools/

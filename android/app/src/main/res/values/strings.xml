@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">InkBrief</string>
+    <string name="settings_label">设置</string>
+    <string name="card_liked">✓ 喜欢</string>
+    <string name="card_skipped">✕ 跳过</string>
+    <string name="sync_success">已同步 %s</string>
+    <string name="sync_fail">同步失败，显示本地内容</string>
+    <string name="no_tasks">今天没有内容。</string>
+    <string name="all_complete">今日已完成</string>
+    <string name="detail_like">喜欢</string>
+    <string name="detail_skip">跳过</string>
+    <string name="settings_api_url">API 服务器地址</string>
+    <string name="settings_token">Token</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_back">返回</string>
+</resources>
