@@ -30,16 +30,15 @@ public class MainActivity extends Activity {
     private static final int STATE_CARD = 0;
     private static final int STATE_CONFIRMATION = 1;
     private static final int STATE_DONE = 2;
-    // Kindle e-ink: low sample rate + slow finger → distance beats velocity.
-    private static final int SWIPE_MIN_PX = 80;
-    private static final int TAP_MAX_PX = 30;
+    // Kindle e-ink: distance-based swipe (onFling rarely fires).
+    private static final int SWIPE_MIN_PX = 60;
+    private static final int TAP_MAX_PX = 40;
 
     private CardView cardView;
     private TextView confirmationText;
     private LinearLayout doneLayout;
     private TextView doneTitle;
     private TextView statsText;
-    private LinearLayout actionBar;
     private FrameLayout rootLayout;
 
     private CardRepository cardRepository;
@@ -49,7 +48,7 @@ public class MainActivity extends Activity {
     private int state = STATE_CARD;
     private final Handler handler = new Handler();
 
-    // Manual swipe tracking (GestureDetector.onFling is too picky on e-ink).
+    // Distance-based swipe tracking on the Activity (proven on this device).
     private float touchDownX;
     private float touchDownY;
     private long touchDownAt;
@@ -95,8 +94,9 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Intercept all touches before children. Distance-based swipe works on
-     * Kindle where GestureDetector.onFling almost never fires.
+     * Swipe-only card browsing. No bottom buttons.
+     * Use Activity.dispatchTouchEvent + distance thresholds (not onFling).
+     * This path previously produced real POST like/skip on this Kindle.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {
@@ -113,10 +113,9 @@ public class MainActivity extends Activity {
                 float dy = event.getY() - touchDownY;
                 long dt = System.currentTimeMillis() - touchDownAt;
 
-                // Horizontal swipe wins if clearly dominant and long enough.
                 if (Math.abs(dx) >= SWIPE_MIN_PX
-                        && Math.abs(dx) > Math.abs(dy) * 1.2f
-                        && dt < 1500) {
+                        && Math.abs(dx) > Math.abs(dy) * 1.1f
+                        && dt < 2500) {
                     if (dx < 0) {
                         handleAction("like");
                     } else {
@@ -124,18 +123,13 @@ public class MainActivity extends Activity {
                     }
                     return true;
                 }
-                // Short tap → detail (ignore if near bottom action bar).
-                if (Math.abs(dx) < TAP_MAX_PX && Math.abs(dy) < TAP_MAX_PX
-                        && dt < 500) {
-                    int h = rootLayout != null ? rootLayout.getHeight() : 0;
-                    // Leave bottom ~90dp for buttons.
-                    float bottomZone = h > 0 ? h - dp(90) : Float.MAX_VALUE;
-                    if (touchDownY < bottomZone
-                            && cards != null
-                            && currentIndex < cards.size()) {
-                        openDetail(cards.get(currentIndex));
-                        return true;
-                    }
+                if (Math.abs(dx) < TAP_MAX_PX
+                        && Math.abs(dy) < TAP_MAX_PX
+                        && dt < 600
+                        && cards != null
+                        && currentIndex < cards.size()) {
+                    openDetail(cards.get(currentIndex));
+                    return true;
                 }
             } else if (action == MotionEvent.ACTION_CANCEL) {
                 touchTracking = false;
@@ -144,65 +138,16 @@ public class MainActivity extends Activity {
         return super.dispatchTouchEvent(event);
     }
 
-    private int dp(int v) {
-        return (int) (v * getResources().getDisplayMetrics().density);
-    }
-
     private void buildUI() {
         rootLayout = new FrameLayout(this);
         rootLayout.setBackgroundColor(Color.WHITE);
         rootLayout.setClickable(true);
 
-        // Card content (above action bar padding via bottom margin)
+        // Full-screen card; swipe only (no action buttons).
         cardView = new CardView(this);
-        FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(
+        rootLayout.addView(cardView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT);
-        cardLp.bottomMargin = dp(72);
-        rootLayout.addView(cardView, cardLp);
-
-        // Reliable buttons for e-ink (swipe is secondary).
-        actionBar = new LinearLayout(this);
-        actionBar.setOrientation(LinearLayout.HORIZONTAL);
-        actionBar.setBackgroundColor(Color.WHITE);
-        actionBar.setGravity(Gravity.CENTER);
-        int pad = dp(8);
-        actionBar.setPadding(pad, pad, pad, pad);
-
-        Button likeBtn = new Button(this);
-        likeBtn.setText("\u559C\u6B22 \u2190");
-        likeBtn.setTextSize(16);
-        likeBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (state == STATE_CARD) {
-                    handleAction("like");
-                }
-            }
-        });
-        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        btnLp.setMargins(pad, 0, pad, 0);
-        actionBar.addView(likeBtn, btnLp);
-
-        Button skipBtn = new Button(this);
-        skipBtn.setText("\u8DF3\u8FC7 \u2192");
-        skipBtn.setTextSize(16);
-        skipBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (state == STATE_CARD) {
-                    handleAction("skip");
-                }
-            }
-        });
-        actionBar.addView(skipBtn, btnLp);
-
-        FrameLayout.LayoutParams barLp = new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT);
-        barLp.gravity = Gravity.BOTTOM;
-        rootLayout.addView(actionBar, barLp);
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
         confirmationText = new TextView(this);
         confirmationText.setBackgroundColor(Color.WHITE);
@@ -347,9 +292,6 @@ public class MainActivity extends Activity {
         }
         cardView.setPosition(shownPos - 1, shownTotal);
         cardView.setVisibility(View.VISIBLE);
-        if (actionBar != null) {
-            actionBar.setVisibility(View.VISIBLE);
-        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.GONE);
     }
@@ -357,9 +299,6 @@ public class MainActivity extends Activity {
     private void showLoading() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
-        if (actionBar != null) {
-            actionBar.setVisibility(View.GONE);
-        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -371,9 +310,6 @@ public class MainActivity extends Activity {
     private void showEmpty() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
-        if (actionBar != null) {
-            actionBar.setVisibility(View.GONE);
-        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -388,9 +324,6 @@ public class MainActivity extends Activity {
     private void showDone() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
-        if (actionBar != null) {
-            actionBar.setVisibility(View.GONE);
-        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -417,9 +350,6 @@ public class MainActivity extends Activity {
         final Card card = cards.get(currentIndex);
 
         state = STATE_CONFIRMATION;
-        if (actionBar != null) {
-            actionBar.setVisibility(View.GONE);
-        }
 
         if ("like".equals(action)) {
             confirmationText.setText("\u2713  \u559C\u6B22");

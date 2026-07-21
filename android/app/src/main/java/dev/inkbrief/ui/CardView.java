@@ -14,6 +14,7 @@ import dev.inkbrief.data.Card;
 /**
  * Card UI from stock TextViews (no Canvas, no ScrollView).
  * ScrollView eats horizontal swipes on Kindle; keep layout non-scrollable.
+ * Swipe is handled by MainActivity.dispatchTouchEvent.
  */
 public class CardView extends FrameLayout {
 
@@ -39,7 +40,6 @@ public class CardView extends FrameLayout {
         column.setOrientation(LinearLayout.VERTICAL);
         column.setBackgroundColor(Color.WHITE);
         column.setPadding(pad, pad, pad, pad);
-        // Do not intercept: let Activity handle swipes.
         column.setClickable(false);
         column.setFocusable(false);
 
