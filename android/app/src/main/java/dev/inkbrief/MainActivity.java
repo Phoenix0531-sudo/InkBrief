@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.GestureDetector;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -27,24 +26,34 @@ import dev.inkbrief.ui.CardView;
 
 public class MainActivity extends Activity {
 
-    private static final long CONFIRMATION_DELAY_MS = 1200;
+    private static final long CONFIRMATION_DELAY_MS = 800;
     private static final int STATE_CARD = 0;
     private static final int STATE_CONFIRMATION = 1;
     private static final int STATE_DONE = 2;
+    // Kindle e-ink: low sample rate + slow finger → distance beats velocity.
+    private static final int SWIPE_MIN_PX = 80;
+    private static final int TAP_MAX_PX = 30;
 
     private CardView cardView;
     private TextView confirmationText;
     private LinearLayout doneLayout;
     private TextView doneTitle;
     private TextView statsText;
+    private LinearLayout actionBar;
+    private FrameLayout rootLayout;
 
-    private GestureDetector gestureDetector;
     private CardRepository cardRepository;
     private SyncClient syncClient;
     private List<Card> cards;
     private int currentIndex = 0;
     private int state = STATE_CARD;
     private final Handler handler = new Handler();
+
+    // Manual swipe tracking (GestureDetector.onFling is too picky on e-ink).
+    private float touchDownX;
+    private float touchDownY;
+    private long touchDownAt;
+    private boolean touchTracking;
 
     // Progress from server / local (full deck, not just pending list)
     private int progressTotal = 0;
@@ -61,71 +70,139 @@ public class MainActivity extends Activity {
         syncClient = new SyncClient(this);
 
         buildUI();
-
-        gestureDetector = new GestureDetector(this,
-                new GestureDetector.SimpleOnGestureListener() {
-                    @Override
-                    public boolean onFling(MotionEvent e1, MotionEvent e2,
-                            float velocityX, float velocityY) {
-                        if (e1 == null || e2 == null) return false;
-                        if (state != STATE_CARD) return false;
-
-                        float diffX = e2.getX() - e1.getX();
-                        float diffY = e2.getY() - e1.getY();
-
-                        if (Math.abs(diffY) > Math.abs(diffX)) return false;
-                        if (Math.abs(diffX) < 200) return false;
-
-                        if (diffX < 0) {
-                            handleAction("like");
-                        } else {
-                            handleAction("skip");
-                        }
-                        return true;
-                    }
-
-                    @Override
-                    public boolean onSingleTapConfirmed(MotionEvent e) {
-                        if (state == STATE_CARD && cards != null
-                                && currentIndex < cards.size()) {
-                            openDetail(cards.get(currentIndex));
-                            return true;
-                        }
-                        return false;
-                    }
-                });
-        gestureDetector.setIsLongpressEnabled(false);
-
         loadCards();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        // Flush offline queue when app comes back to foreground.
-        new Thread(new Runnable() {
+        // Delay flush so it doesn't race first UI load on slow e-ink devices.
+        handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                flushPendingActions();
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            flushPendingActions();
+                        } catch (Throwable t) {
+                            // Never crash the app for offline queue issues.
+                        }
+                    }
+                }).start();
             }
-        }).start();
+        }, 800);
     }
 
+    /**
+     * Intercept all touches before children. Distance-based swipe works on
+     * Kindle where GestureDetector.onFling almost never fires.
+     */
     @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event);
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (state == STATE_CARD && event != null) {
+            final int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                touchDownX = event.getX();
+                touchDownY = event.getY();
+                touchDownAt = System.currentTimeMillis();
+                touchTracking = true;
+            } else if (action == MotionEvent.ACTION_UP && touchTracking) {
+                touchTracking = false;
+                float dx = event.getX() - touchDownX;
+                float dy = event.getY() - touchDownY;
+                long dt = System.currentTimeMillis() - touchDownAt;
+
+                // Horizontal swipe wins if clearly dominant and long enough.
+                if (Math.abs(dx) >= SWIPE_MIN_PX
+                        && Math.abs(dx) > Math.abs(dy) * 1.2f
+                        && dt < 1500) {
+                    if (dx < 0) {
+                        handleAction("like");
+                    } else {
+                        handleAction("skip");
+                    }
+                    return true;
+                }
+                // Short tap → detail (ignore if near bottom action bar).
+                if (Math.abs(dx) < TAP_MAX_PX && Math.abs(dy) < TAP_MAX_PX
+                        && dt < 500) {
+                    int h = rootLayout != null ? rootLayout.getHeight() : 0;
+                    // Leave bottom ~90dp for buttons.
+                    float bottomZone = h > 0 ? h - dp(90) : Float.MAX_VALUE;
+                    if (touchDownY < bottomZone
+                            && cards != null
+                            && currentIndex < cards.size()) {
+                        openDetail(cards.get(currentIndex));
+                        return true;
+                    }
+                }
+            } else if (action == MotionEvent.ACTION_CANCEL) {
+                touchTracking = false;
+            }
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density);
     }
 
     private void buildUI() {
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.WHITE);
-        // Ensure fling gestures reach Activity even when children are scrolled.
-        root.setClickable(true);
+        rootLayout = new FrameLayout(this);
+        rootLayout.setBackgroundColor(Color.WHITE);
+        rootLayout.setClickable(true);
 
+        // Card content (above action bar padding via bottom margin)
         cardView = new CardView(this);
-        root.addView(cardView, new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        cardLp.bottomMargin = dp(72);
+        rootLayout.addView(cardView, cardLp);
+
+        // Reliable buttons for e-ink (swipe is secondary).
+        actionBar = new LinearLayout(this);
+        actionBar.setOrientation(LinearLayout.HORIZONTAL);
+        actionBar.setBackgroundColor(Color.WHITE);
+        actionBar.setGravity(Gravity.CENTER);
+        int pad = dp(8);
+        actionBar.setPadding(pad, pad, pad, pad);
+
+        Button likeBtn = new Button(this);
+        likeBtn.setText("\u559C\u6B22 \u2190");
+        likeBtn.setTextSize(16);
+        likeBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (state == STATE_CARD) {
+                    handleAction("like");
+                }
+            }
+        });
+        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        btnLp.setMargins(pad, 0, pad, 0);
+        actionBar.addView(likeBtn, btnLp);
+
+        Button skipBtn = new Button(this);
+        skipBtn.setText("\u8DF3\u8FC7 \u2192");
+        skipBtn.setTextSize(16);
+        skipBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (state == STATE_CARD) {
+                    handleAction("skip");
+                }
+            }
+        });
+        actionBar.addView(skipBtn, btnLp);
+
+        FrameLayout.LayoutParams barLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        barLp.gravity = Gravity.BOTTOM;
+        rootLayout.addView(actionBar, barLp);
 
         confirmationText = new TextView(this);
         confirmationText.setBackgroundColor(Color.WHITE);
@@ -133,24 +210,17 @@ public class MainActivity extends Activity {
         confirmationText.setTextSize(28);
         confirmationText.setTextColor(Color.BLACK);
         confirmationText.setVisibility(View.GONE);
-        root.addView(confirmationText, new FrameLayout.LayoutParams(
+        rootLayout.addView(confirmationText, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
         doneLayout = buildDoneView();
         doneLayout.setVisibility(View.GONE);
-        root.addView(doneLayout, new FrameLayout.LayoutParams(
+        rootLayout.addView(doneLayout, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        setContentView(root);
-        // Also attach gesture detector on content root for reliable e-ink touch.
-        root.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                return gestureDetector != null && gestureDetector.onTouchEvent(event);
-            }
-        });
+        setContentView(rootLayout);
     }
 
     private LinearLayout buildDoneView() {
@@ -277,6 +347,9 @@ public class MainActivity extends Activity {
         }
         cardView.setPosition(shownPos - 1, shownTotal);
         cardView.setVisibility(View.VISIBLE);
+        if (actionBar != null) {
+            actionBar.setVisibility(View.VISIBLE);
+        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.GONE);
     }
@@ -284,6 +357,9 @@ public class MainActivity extends Activity {
     private void showLoading() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
+        if (actionBar != null) {
+            actionBar.setVisibility(View.GONE);
+        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -295,6 +371,9 @@ public class MainActivity extends Activity {
     private void showEmpty() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
+        if (actionBar != null) {
+            actionBar.setVisibility(View.GONE);
+        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -309,6 +388,9 @@ public class MainActivity extends Activity {
     private void showDone() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
+        if (actionBar != null) {
+            actionBar.setVisibility(View.GONE);
+        }
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
         if (doneTitle != null) {
@@ -330,10 +412,14 @@ public class MainActivity extends Activity {
     }
 
     private void handleAction(final String action) {
+        if (state != STATE_CARD) return;
         if (cards == null || currentIndex >= cards.size()) return;
         final Card card = cards.get(currentIndex);
 
         state = STATE_CONFIRMATION;
+        if (actionBar != null) {
+            actionBar.setVisibility(View.GONE);
+        }
 
         if ("like".equals(action)) {
             confirmationText.setText("\u2713  \u559C\u6B22");

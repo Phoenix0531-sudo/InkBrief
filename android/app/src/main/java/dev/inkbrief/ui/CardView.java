@@ -7,14 +7,13 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import dev.inkbrief.data.Card;
 
 /**
- * Card UI built from stock TextViews.
- * Custom Canvas drawing is blank on some Kindle/KOSP e-ink devices.
+ * Card UI from stock TextViews (no Canvas, no ScrollView).
+ * ScrollView eats horizontal swipes on Kindle; keep layout non-scrollable.
  */
 public class CardView extends FrameLayout {
 
@@ -31,7 +30,6 @@ public class CardView extends FrameLayout {
     public CardView(Context context) {
         super(context);
         setBackgroundColor(Color.WHITE);
-        // Receive touch events so Activity can still process flings via dispatch.
         setClickable(false);
         setFocusable(false);
 
@@ -41,6 +39,9 @@ public class CardView extends FrameLayout {
         column.setOrientation(LinearLayout.VERTICAL);
         column.setBackgroundColor(Color.WHITE);
         column.setPadding(pad, pad, pad, pad);
+        // Do not intercept: let Activity handle swipes.
+        column.setClickable(false);
+        column.setFocusable(false);
 
         titleView = new TextView(context);
         titleView.setTextColor(Color.BLACK);
@@ -48,6 +49,7 @@ public class CardView extends FrameLayout {
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setGravity(Gravity.CENTER_HORIZONTAL);
         titleView.setPadding(0, 0, 0, dp(12));
+        titleView.setClickable(false);
         column.addView(titleView, lp());
 
         metaView = new TextView(context);
@@ -55,6 +57,7 @@ public class CardView extends FrameLayout {
         metaView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         metaView.setGravity(Gravity.CENTER_HORIZONTAL);
         metaView.setPadding(0, 0, 0, dp(16));
+        metaView.setClickable(false);
         column.addView(metaView, lp());
 
         reasonView = new TextView(context);
@@ -62,15 +65,17 @@ public class CardView extends FrameLayout {
         reasonView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         reasonView.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC));
         reasonView.setPadding(0, 0, 0, dp(16));
+        reasonView.setClickable(false);
         column.addView(reasonView, lp());
 
         summaryView = new TextView(context);
         summaryView.setTextColor(Color.BLACK);
         summaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         summaryView.setPadding(0, 0, 0, dp(24));
+        summaryView.setMaxLines(12);
+        summaryView.setClickable(false);
         column.addView(summaryView, lp());
 
-        // Spacer pushes position to bottom when content is short.
         TextView spacer = new TextView(context);
         LinearLayout.LayoutParams spacerLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
@@ -80,16 +85,10 @@ public class CardView extends FrameLayout {
         positionView.setTextColor(Color.parseColor("#888888"));
         positionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         positionView.setGravity(Gravity.END);
+        positionView.setClickable(false);
         column.addView(positionView, lp());
 
-        ScrollView scroll = new ScrollView(context);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(Color.WHITE);
-        scroll.addView(column, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT));
-
-        addView(scroll, new LayoutParams(
+        addView(column, new LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
 
