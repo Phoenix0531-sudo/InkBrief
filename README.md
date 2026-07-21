@@ -1,5 +1,11 @@
 # InkBrief 📡✍️
 
+**Lightweight e-ink agent-synced briefing companion**
+
+[English](README.md) | [中文](README.zh-CN.md)
+
+![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)
+
 面向 Kindle PW3（KOSP Android 4.4.2）的**私人信息简报终端**。
 
 它不是 RSS 阅读器，而是"你的私人信息系统的墨水屏终端"。
