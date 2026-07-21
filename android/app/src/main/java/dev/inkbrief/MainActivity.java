@@ -119,6 +119,8 @@ public class MainActivity extends Activity {
     private void buildUI() {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
+        // Ensure fling gestures reach Activity even when children are scrolled.
+        root.setClickable(true);
 
         cardView = new CardView(this);
         root.addView(cardView, new FrameLayout.LayoutParams(
@@ -142,6 +144,13 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
+        // Also attach gesture detector on content root for reliable e-ink touch.
+        root.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                return gestureDetector != null && gestureDetector.onTouchEvent(event);
+            }
+        });
     }
 
     private LinearLayout buildDoneView() {
@@ -154,12 +163,14 @@ public class MainActivity extends Activity {
 
         doneTitle = new TextView(this);
         doneTitle.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
+        doneTitle.setTextColor(Color.BLACK);
         doneTitle.setTextSize(22);
         doneTitle.setGravity(Gravity.CENTER);
         doneTitle.setPadding(0, 0, 0, pad * 2);
         layout.addView(doneTitle);
 
         statsText = new TextView(this);
+        statsText.setTextColor(Color.BLACK);
         statsText.setTextSize(16);
         statsText.setGravity(Gravity.CENTER);
         statsText.setPadding(0, 0, 0, pad * 2);

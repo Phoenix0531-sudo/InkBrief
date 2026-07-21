@@ -1,164 +1,165 @@
 package dev.inkbrief.ui;
 
 import android.content.Context;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
 import android.graphics.Typeface;
-import android.text.Layout;
-import android.text.StaticLayout;
-import android.text.TextPaint;
 import android.util.TypedValue;
-import android.view.View;
+import android.view.Gravity;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import dev.inkbrief.data.Card;
 
-public class CardView extends View {
+/**
+ * Card UI built from stock TextViews.
+ * Custom Canvas drawing is blank on some Kindle/KOSP e-ink devices.
+ */
+public class CardView extends FrameLayout {
+
+    private final TextView titleView;
+    private final TextView metaView;
+    private final TextView reasonView;
+    private final TextView summaryView;
+    private final TextView positionView;
 
     private Card card;
     private int currentPosition;
     private int totalCards;
 
-    private final TextPaint titlePaint;
-    private final Paint sourcePaint;
-    private final TextPaint reasonPaint;
-    private final TextPaint summaryPaint;
-    private final Paint positionPaint;
-    private final int paddingPx;
-
     public CardView(Context context) {
         super(context);
         setBackgroundColor(Color.WHITE);
+        // Receive touch events so Activity can still process flings via dispatch.
+        setClickable(false);
+        setFocusable(false);
 
-        paddingPx = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 18, getResources().getDisplayMetrics());
+        int pad = dp(18);
 
-        float titleSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 18, getResources().getDisplayMetrics());
-        titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        titlePaint.setColor(Color.BLACK);
-        titlePaint.setTextSize(titleSize);
-        titlePaint.setTypeface(Typeface.DEFAULT_BOLD);
-        titlePaint.setTextAlign(Paint.Align.CENTER);
+        LinearLayout column = new LinearLayout(context);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setBackgroundColor(Color.WHITE);
+        column.setPadding(pad, pad, pad, pad);
 
-        float sourceSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 14, getResources().getDisplayMetrics());
-        sourcePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        sourcePaint.setColor(Color.parseColor("#555555"));
-        sourcePaint.setTextSize(sourceSize);
-        sourcePaint.setTextAlign(Paint.Align.CENTER);
+        titleView = new TextView(context);
+        titleView.setTextColor(Color.BLACK);
+        titleView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setGravity(Gravity.CENTER_HORIZONTAL);
+        titleView.setPadding(0, 0, 0, dp(12));
+        column.addView(titleView, lp());
 
-        float reasonSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 15, getResources().getDisplayMetrics());
-        reasonPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        reasonPaint.setColor(Color.parseColor("#333333"));
-        reasonPaint.setTextSize(reasonSize);
-        reasonPaint.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC));
+        metaView = new TextView(context);
+        metaView.setTextColor(Color.parseColor("#555555"));
+        metaView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        metaView.setGravity(Gravity.CENTER_HORIZONTAL);
+        metaView.setPadding(0, 0, 0, dp(16));
+        column.addView(metaView, lp());
 
-        float summarySize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 14, getResources().getDisplayMetrics());
-        summaryPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        summaryPaint.setColor(Color.BLACK);
-        summaryPaint.setTextSize(summarySize);
+        reasonView = new TextView(context);
+        reasonView.setTextColor(Color.parseColor("#333333"));
+        reasonView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+        reasonView.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC));
+        reasonView.setPadding(0, 0, 0, dp(16));
+        column.addView(reasonView, lp());
 
-        float posSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 13, getResources().getDisplayMetrics());
-        positionPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        positionPaint.setColor(Color.parseColor("#888888"));
-        positionPaint.setTextSize(posSize);
+        summaryView = new TextView(context);
+        summaryView.setTextColor(Color.BLACK);
+        summaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        summaryView.setPadding(0, 0, 0, dp(24));
+        column.addView(summaryView, lp());
+
+        // Spacer pushes position to bottom when content is short.
+        TextView spacer = new TextView(context);
+        LinearLayout.LayoutParams spacerLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        column.addView(spacer, spacerLp);
+
+        positionView = new TextView(context);
+        positionView.setTextColor(Color.parseColor("#888888"));
+        positionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        positionView.setGravity(Gravity.END);
+        column.addView(positionView, lp());
+
+        ScrollView scroll = new ScrollView(context);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(Color.WHITE);
+        scroll.addView(column, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.MATCH_PARENT));
+
+        addView(scroll, new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
     }
 
     public void setCard(Card card) {
         this.card = card;
-        invalidate();
+        bind();
     }
 
     public void setPosition(int current, int total) {
         this.currentPosition = current;
         this.totalCards = total;
+        if (totalCards > 0) {
+            positionView.setText((currentPosition + 1) + " / " + totalCards);
+        } else {
+            positionView.setText("");
+        }
     }
 
-    @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+    private void bind() {
         if (card == null) {
+            titleView.setText("");
+            metaView.setText("");
+            reasonView.setText("");
+            summaryView.setText("");
             return;
         }
 
-        int viewWidth = getWidth();
-        int viewHeight = getHeight();
-        int contentWidth = viewWidth - 2 * paddingPx;
+        titleView.setText(safe(card.getTitle()));
 
-        int y = paddingPx + 40;
-
-        // Title - centered, bold
-        String title = card.getTitle();
-        if (title != null && title.length() > 0) {
-            StaticLayout titleLayout = new StaticLayout(
-                    title, titlePaint, contentWidth,
-                    Layout.Alignment.ALIGN_CENTER, 1.0f, 0, false);
-            canvas.save();
-            canvas.translate(paddingPx, y);
-            titleLayout.draw(canvas);
-            canvas.restore();
-            y += titleLayout.getHeight() + 12;
-        }
-
-        // Source · Score · Tag - centered
-        String sourceText = "";
+        StringBuilder meta = new StringBuilder();
         if (card.getSource() != null && card.getSource().length() > 0) {
-            sourceText = card.getSource();
+            meta.append(card.getSource());
         }
         String tag = card.getTag();
         if (tag != null && tag.length() > 0) {
-            String shortTag = tag.length() > 6 ? tag.substring(0, 6) + ".." : tag;
-            sourceText += " · " + shortTag;
+            if (meta.length() > 0) meta.append(" · ");
+            meta.append(tag.length() > 8 ? tag.substring(0, 8) + ".." : tag);
         }
-        sourceText += " · " + String.format("%.1f", card.getAiScore());
-        float sourceY = y + Math.abs(sourcePaint.ascent());
-        canvas.drawText(sourceText, viewWidth / 2.0f, sourceY, sourcePaint);
-        y += sourcePaint.getFontSpacing() + 12;
+        if (meta.length() > 0) meta.append(" · ");
+        meta.append(String.format("%.1f", card.getAiScore()));
+        metaView.setText(meta.toString());
 
-        // Reason paragraph - italic, left-aligned
         String reason = card.getReason();
         if (reason != null && reason.length() > 0) {
-            StaticLayout reasonLayout = new StaticLayout(
-                    reason, reasonPaint, contentWidth,
-                    Layout.Alignment.ALIGN_NORMAL, 1.3f, 0, false);
-            canvas.save();
-            canvas.translate(paddingPx, y);
-            reasonLayout.draw(canvas);
-            canvas.restore();
-            y += reasonLayout.getHeight() + 16;
+            reasonView.setVisibility(VISIBLE);
+            reasonView.setText(reason);
+        } else {
+            reasonView.setVisibility(GONE);
         }
 
-        // Summary - normal weight, left-aligned, show as much as fits
         String summary = card.getSummary();
-        if (summary != null && summary.length() > 0) {
-            int maxLines = Math.max(3, (viewHeight - y - 60) / 40);
-            StaticLayout summaryLayout = new StaticLayout(
-                    summary, summaryPaint, contentWidth,
-                    Layout.Alignment.ALIGN_NORMAL, 1.2f, 0, false);
-            int visibleLines = Math.min(summaryLayout.getLineCount(), maxLines);
-            int summaryHeight = 0;
-            for (int i = 0; i < visibleLines; i++) {
-                summaryHeight = summaryLayout.getLineBottom(i);
-            }
-            canvas.save();
-            canvas.clipRect(paddingPx, y, viewWidth - paddingPx, y + summaryHeight);
-            canvas.translate(paddingPx, y);
-            summaryLayout.draw(canvas);
-            canvas.restore();
-            y += summaryHeight + 12;
-        }
+        summaryView.setText(summary != null ? summary : "");
 
-        // Position indicator - bottom-right
         if (totalCards > 0) {
-            String posText = (currentPosition + 1) + " / " + totalCards;
-            float textWidth = positionPaint.measureText(posText);
-            float posX = viewWidth - paddingPx - textWidth;
-            float posY = viewHeight - paddingPx;
-            canvas.drawText(posText, posX, posY, positionPaint);
+            positionView.setText((currentPosition + 1) + " / " + totalCards);
         }
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
+    }
+
+    private int dp(int v) {
+        return (int) TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
+    }
+
+    private static LinearLayout.LayoutParams lp() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
     }
 }
