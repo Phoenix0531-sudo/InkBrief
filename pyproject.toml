@@ -1,0 +1,25 @@
+[project]
+name = "inkbrief"
+version = "0.1.0"
+description = "轻量级墨水屏 Agent 同步简报应用"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Phoenix0531-sudo" }]
+dependencies = [
+    
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

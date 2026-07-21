@@ -5,6 +5,7 @@
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
 面向 Kindle PW3（KOSP Android 4.4.2）的**私人信息简报终端**。
 
@@ -198,4 +199,5 @@ curl -s -X POST http://127.0.0.1:8720/webhook/horizon \
 
 ## License
 
-MIT
+[MIT](LICENSE) — free for commercial use with attribution.
+
