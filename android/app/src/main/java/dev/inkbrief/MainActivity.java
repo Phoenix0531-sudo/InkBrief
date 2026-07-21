@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
     private CardView cardView;
     private TextView confirmationText;
     private LinearLayout doneLayout;
+    private TextView doneTitle;
     private TextView statsText;
 
     private GestureDetector gestureDetector;
@@ -49,6 +50,8 @@ public class MainActivity extends Activity {
     private int progressTotal = 0;
     private int progressLiked = 0;
     private int progressSkipped = 0;
+    // Server deck date (may differ from device calendar "today")
+    private String deckDate = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -149,12 +152,12 @@ public class MainActivity extends Activity {
         int pad = (int) (24 * getResources().getDisplayMetrics().density);
         layout.setPadding(pad, pad, pad, pad);
 
-        TextView title = new TextView(this);
-        title.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
-        title.setTextSize(22);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, 0, 0, pad * 2);
-        layout.addView(title);
+        doneTitle = new TextView(this);
+        doneTitle.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
+        doneTitle.setTextSize(22);
+        doneTitle.setGravity(Gravity.CENTER);
+        doneTitle.setPadding(0, 0, 0, pad * 2);
+        layout.addView(doneTitle);
 
         statsText = new TextView(this);
         statsText.setTextSize(16);
@@ -190,18 +193,24 @@ public class MainActivity extends Activity {
     }
 
     private void loadCards() {
-        String today = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
-        List<Card> all = cardRepository.getAllCards(today);
+        // Prefer latest cached deck date; calendar "today" is only a hint.
+        // Backend may still serve yesterday's deck (Horizon not run yet today).
+        String calendarToday = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+        String cachedDate = cardRepository.getLatestDeckDate();
+        deckDate = (cachedDate != null && cachedDate.length() > 0) ? cachedDate : calendarToday;
+
+        List<Card> all = cardRepository.getAllCards(deckDate);
         cards = filterPending(all);
         recomputeLocalProgress(all);
 
         if (cards != null && !cards.isEmpty()) {
             showCard(0);
         } else if (all != null && !all.isEmpty()) {
-            // All cards already liked/skipped locally.
+            // All cards already liked/skipped locally for this deck.
             showDone();
         } else {
-            showEmpty();
+            // No local cache — show loading state, not "done".
+            showLoading();
         }
 
         doSync();
@@ -261,12 +270,29 @@ public class MainActivity extends Activity {
         doneLayout.setVisibility(View.GONE);
     }
 
+    private void showLoading() {
+        state = STATE_DONE;
+        cardView.setVisibility(View.GONE);
+        confirmationText.setVisibility(View.GONE);
+        doneLayout.setVisibility(View.VISIBLE);
+        if (doneTitle != null) {
+            doneTitle.setText("\u6B63\u5728\u540C\u6B65\u2026");
+        }
+        statsText.setText("\u82E5\u957F\u65F6\u95F4\u65E0\u53CD\u5E94\uFF0C\u8BF7\u68C0\u67E5 API \u5730\u5740\u4E0E Token");
+    }
+
     private void showEmpty() {
         state = STATE_DONE;
         cardView.setVisibility(View.GONE);
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
-        statsText.setText("\u4ECA\u5929\u6CA1\u6709\u5185\u5BB9\u3002");
+        if (doneTitle != null) {
+            doneTitle.setText("\u6682\u65E0\u5F85\u5212\u5361\u7247");
+        }
+        String dateHint = (deckDate != null && deckDate.length() > 0) ? deckDate : "";
+        statsText.setText("\u670D\u52A1\u7AEF\u6CA1\u6709\u5F85\u5212\u5185\u5BB9"
+                + (dateHint.length() > 0 ? "\n\u5361\u7EC4\u65E5\u671F: " + dateHint : "")
+                + "\n\u70B9\u300C\u5237\u65B0\u300D\u91CD\u8BD5");
     }
 
     private void showDone() {
@@ -274,6 +300,9 @@ public class MainActivity extends Activity {
         cardView.setVisibility(View.GONE);
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
+        if (doneTitle != null) {
+            doneTitle.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
+        }
 
         int total = progressTotal;
         int liked = progressLiked;
@@ -281,9 +310,12 @@ public class MainActivity extends Activity {
         if (total <= 0 && cards != null) {
             total = cards.size() + liked + skipped;
         }
+        String dateHint = (deckDate != null && deckDate.length() > 0)
+                ? ("\n\u5361\u7EC4: " + deckDate) : "";
         statsText.setText("\u603B\u8BA1: " + total
                 + "   \u559C\u6B22: " + liked
-                + "   \u8DF3\u8FC7: " + skipped);
+                + "   \u8DF3\u8FC7: " + skipped
+                + dateHint);
     }
 
     private void handleAction(final String action) {
@@ -389,10 +421,27 @@ public class MainActivity extends Activity {
                 try {
                     final SyncClient.TodayResult result = syncClient.fetchToday();
                     if (result != null) {
+                        // Persist server deck date (not device calendar).
+                        if (result.date != null && result.date.length() > 0) {
+                            deckDate = result.date;
+                            for (Card c : result.cards) {
+                                if (c.getDate() == null || c.getDate().length() == 0) {
+                                    c.setDate(result.date);
+                                }
+                            }
+                        }
                         cardRepository.insertOrUpdate(result.cards);
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
+                                // Never clobber an in-progress confirmation frame.
+                                if (state == STATE_CONFIRMATION) {
+                                    progressTotal = result.total;
+                                    progressLiked = result.likedToday;
+                                    progressSkipped = result.skippedToday;
+                                    return;
+                                }
+
                                 String currentId = null;
                                 if (state == STATE_CARD
                                         && cards != null
@@ -403,6 +452,9 @@ public class MainActivity extends Activity {
                                 progressTotal = result.total;
                                 progressLiked = result.likedToday;
                                 progressSkipped = result.skippedToday;
+                                if (result.date != null && result.date.length() > 0) {
+                                    deckDate = result.date;
+                                }
 
                                 // API already returns pending-only; still filter.
                                 cards = filterPending(result.cards);
@@ -419,10 +471,16 @@ public class MainActivity extends Activity {
                                     if (result.total > 0
                                             && (result.likedToday + result.skippedToday) >= result.total) {
                                         showDone();
+                                    } else if (result.total > 0
+                                            && (result.likedToday + result.skippedToday) < result.total) {
+                                        // Server says deck exists with remaining cards but
+                                        // pending list empty — rare race; show empty+retry.
+                                        showEmpty();
                                     } else {
                                         showEmpty();
                                     }
-                                } else if (state == STATE_DONE || state == STATE_CARD) {
+                                } else {
+                                    // Always leave loading/done when pending cards exist.
                                     if (currentId == null) {
                                         showCard(0);
                                     } else {
@@ -430,7 +488,8 @@ public class MainActivity extends Activity {
                                     }
                                 }
                                 String msg = "\u5DF2\u540C\u6B65 " + cards.size() + " \u6761\u5F85\u5212"
-                                        + " / \u603B " + result.total;
+                                        + " / \u603B " + result.total
+                                        + (deckDate != null ? " (" + deckDate + ")" : "");
                                 Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
                             }
                         });

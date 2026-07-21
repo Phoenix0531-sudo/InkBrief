@@ -35,12 +35,52 @@ public class CardRepository {
         List<Card> cards = new ArrayList<Card>();
         Cursor cursor = null;
         try {
-            cursor = db.query(InkBriefDatabase.TABLE_CARDS, null,
-                    InkBriefDatabase.COL_DATE + " = ?",
-                    new String[]{date}, null, null,
-                    InkBriefDatabase.COL_POSITION + " ASC");
-            while (cursor.moveToNext()) {
-                cards.add(cursorToCard(cursor));
+            if (date != null && date.length() > 0) {
+                cursor = db.query(InkBriefDatabase.TABLE_CARDS, null,
+                        InkBriefDatabase.COL_DATE + " = ?",
+                        new String[]{date}, null, null,
+                        InkBriefDatabase.COL_POSITION + " ASC");
+                while (cursor.moveToNext()) {
+                    cards.add(cursorToCard(cursor));
+                }
+            }
+            // Calendar "today" may lag behind server deck date (or vice versa).
+            // Fall back to the newest cached deck so offline open still works.
+            if (cards.isEmpty()) {
+                if (cursor != null) {
+                    cursor.close();
+                    cursor = null;
+                }
+                String latest = null;
+                Cursor d = null;
+                try {
+                    d = db.rawQuery(
+                            "SELECT " + InkBriefDatabase.COL_DATE
+                                    + " FROM " + InkBriefDatabase.TABLE_CARDS
+                                    + " WHERE " + InkBriefDatabase.COL_DATE
+                                    + " IS NOT NULL AND " + InkBriefDatabase.COL_DATE
+                                    + " != '' AND " + InkBriefDatabase.COL_DATE
+                                    + " < '2090-01-01'"
+                                    + " ORDER BY " + InkBriefDatabase.COL_DATE
+                                    + " DESC LIMIT 1",
+                            null);
+                    if (d.moveToFirst()) {
+                        latest = d.getString(0);
+                    }
+                } finally {
+                    if (d != null) {
+                        d.close();
+                    }
+                }
+                if (latest != null && (date == null || !latest.equals(date))) {
+                    cursor = db.query(InkBriefDatabase.TABLE_CARDS, null,
+                            InkBriefDatabase.COL_DATE + " = ?",
+                            new String[]{latest}, null, null,
+                            InkBriefDatabase.COL_POSITION + " ASC");
+                    while (cursor.moveToNext()) {
+                        cards.add(cursorToCard(cursor));
+                    }
+                }
             }
         } finally {
             if (cursor != null) {
@@ -49,6 +89,33 @@ public class CardRepository {
             db.close();
         }
         return cards;
+    }
+
+    /** Latest non-synthetic deck date in cache, or null. */
+    public String getLatestDeckDate() {
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor d = null;
+        try {
+            d = db.rawQuery(
+                    "SELECT " + InkBriefDatabase.COL_DATE
+                            + " FROM " + InkBriefDatabase.TABLE_CARDS
+                            + " WHERE " + InkBriefDatabase.COL_DATE
+                            + " IS NOT NULL AND " + InkBriefDatabase.COL_DATE
+                            + " != '' AND " + InkBriefDatabase.COL_DATE
+                            + " < '2090-01-01'"
+                            + " ORDER BY " + InkBriefDatabase.COL_DATE
+                            + " DESC LIMIT 1",
+                    null);
+            if (d.moveToFirst()) {
+                return d.getString(0);
+            }
+        } finally {
+            if (d != null) {
+                d.close();
+            }
+            db.close();
+        }
+        return null;
     }
 
     public Card getCard(String id) {
@@ -78,55 +145,88 @@ public class CardRepository {
         SQLiteDatabase db = dbHelper.getWritableDatabase();
         db.beginTransaction();
         try {
-            String today = cards.get(0).getDate();
-            if (today != null && today.length() > 0) {
-                // Preserve local liked/skipped status for same-day cards
-                // when re-syncing from server. Server status wins if not "new".
-                Cursor existing = null;
-                java.util.HashMap<String, String> statusMap = new java.util.HashMap<String, String>();
+            String deckDate = cards.get(0).getDate();
+            if (deckDate == null || deckDate.length() == 0) {
+                // Last resort: keep previous latest date if server omitted it.
+                Cursor d = null;
                 try {
-                    existing = db.query(InkBriefDatabase.TABLE_CARDS,
-                            new String[]{InkBriefDatabase.COL_ID, InkBriefDatabase.COL_STATUS},
-                            InkBriefDatabase.COL_DATE + " = ?",
-                            new String[]{today}, null, null, null);
-                    while (existing.moveToNext()) {
-                        String id = existing.getString(0);
-                        String st = existing.getString(1);
-                        if ("liked".equals(st) || "skipped".equals(st)) {
-                            statusMap.put(id, st);
-                        }
+                    d = db.rawQuery(
+                            "SELECT " + InkBriefDatabase.COL_DATE
+                                    + " FROM " + InkBriefDatabase.TABLE_CARDS
+                                    + " WHERE " + InkBriefDatabase.COL_DATE
+                                    + " IS NOT NULL AND " + InkBriefDatabase.COL_DATE
+                                    + " != '' AND " + InkBriefDatabase.COL_DATE
+                                    + " < '2090-01-01'"
+                                    + " ORDER BY " + InkBriefDatabase.COL_DATE
+                                    + " DESC LIMIT 1",
+                            null);
+                    if (d.moveToFirst()) {
+                        deckDate = d.getString(0);
                     }
                 } finally {
-                    if (existing != null) {
-                        existing.close();
+                    if (d != null) {
+                        d.close();
                     }
                 }
+                if (deckDate == null) {
+                    deckDate = "";
+                }
+                for (Card c : cards) {
+                    c.setDate(deckDate);
+                }
+            }
 
-                db.delete(InkBriefDatabase.TABLE_CARDS,
-                        InkBriefDatabase.COL_DATE + " = ?", new String[]{today});
-                for (Card card : cards) {
-                    String serverStatus = card.getStatus();
-                    if (serverStatus == null || serverStatus.length() == 0
-                            || "new".equals(serverStatus)) {
-                        card.setStatus("pending");
+            // Preserve local liked/skipped for same deck; server pending list
+            // is incomplete (API returns pending-only). Never wipe feedback rows.
+            java.util.HashMap<String, String> localFeedback = new java.util.HashMap<String, String>();
+            Cursor existing = null;
+            try {
+                existing = db.query(InkBriefDatabase.TABLE_CARDS,
+                        new String[]{InkBriefDatabase.COL_ID, InkBriefDatabase.COL_STATUS},
+                        InkBriefDatabase.COL_DATE + " = ?",
+                        new String[]{deckDate}, null, null, null);
+                while (existing.moveToNext()) {
+                    String id = existing.getString(0);
+                    String st = existing.getString(1);
+                    if ("liked".equals(st) || "skipped".equals(st)) {
+                        localFeedback.put(id, st);
                     }
-                    // Local feedback wins if user already swiped offline.
-                    String keep = statusMap.get(card.getId());
-                    if (keep != null) {
-                        card.setStatus(keep);
-                    }
-                    db.insertWithOnConflict(InkBriefDatabase.TABLE_CARDS, null,
-                            cardToValues(card), SQLiteDatabase.CONFLICT_REPLACE);
                 }
-            } else {
-                for (Card card : cards) {
-                    if (card.getStatus() == null || card.getStatus().length() == 0
-                            || "new".equals(card.getStatus())) {
-                        card.setStatus("pending");
-                    }
-                    db.insertWithOnConflict(InkBriefDatabase.TABLE_CARDS, null,
-                            cardToValues(card), SQLiteDatabase.CONFLICT_REPLACE);
+            } finally {
+                if (existing != null) {
+                    existing.close();
                 }
+            }
+
+            // Remove only pending/new rows for this deck; keep feedback history.
+            db.delete(InkBriefDatabase.TABLE_CARDS,
+                    InkBriefDatabase.COL_DATE + " = ? AND ("
+                            + InkBriefDatabase.COL_STATUS + " IS NULL OR "
+                            + InkBriefDatabase.COL_STATUS + " = '' OR "
+                            + InkBriefDatabase.COL_STATUS + " = 'pending' OR "
+                            + InkBriefDatabase.COL_STATUS + " = 'new')",
+                    new String[]{deckDate});
+
+            for (Card card : cards) {
+                String serverStatus = card.getStatus();
+                if (serverStatus == null || serverStatus.length() == 0
+                        || "new".equals(serverStatus)) {
+                    card.setStatus("pending");
+                }
+                if (card.getDate() == null || card.getDate().length() == 0) {
+                    card.setDate(deckDate);
+                }
+                // Local offline swipe wins over server pending.
+                String keep = localFeedback.get(card.getId());
+                if (keep != null) {
+                    card.setStatus(keep);
+                }
+                // Skip re-inserting if already liked/skipped locally (row kept).
+                if (keep != null) {
+                    continue;
+                }
+                db.insertWithOnConflict(InkBriefDatabase.TABLE_CARDS, null,
+                        cardToValues(card), SQLiteDatabase.CONFLICT_REPLACE);
             }
             db.setTransactionSuccessful();
         } finally {

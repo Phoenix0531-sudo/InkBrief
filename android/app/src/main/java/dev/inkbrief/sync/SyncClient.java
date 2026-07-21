@@ -62,16 +62,39 @@ public class SyncClient {
     }
 
     public String getBaseUrl() {
-        return getPrefs().getString(PREF_API_URL, DEFAULT_API_URL);
+        String url = getPrefs().getString(PREF_API_URL, DEFAULT_API_URL);
+        if (url == null) {
+            url = DEFAULT_API_URL;
+        }
+        url = url.trim();
+        // Drop trailing slash so path join stays clean.
+        while (url.endsWith("/")) {
+            url = url.substring(0, url.length() - 1);
+        }
+        return url;
     }
 
     public String getToken() {
-        return getPrefs().getString(PREF_TOKEN, DEFAULT_TOKEN);
+        String token = getPrefs().getString(PREF_TOKEN, DEFAULT_TOKEN);
+        if (token == null || token.length() == 0) {
+            return DEFAULT_TOKEN;
+        }
+        // Kindle soft-keyboard often leaves trailing spaces → 401.
+        return token.trim();
     }
 
     public static void saveSettings(Context ctx, String apiUrl, String token) {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(ctx);
         SharedPreferences.Editor editor = prefs.edit();
+        if (apiUrl != null) {
+            apiUrl = apiUrl.trim();
+            while (apiUrl.endsWith("/")) {
+                apiUrl = apiUrl.substring(0, apiUrl.length() - 1);
+            }
+        }
+        if (token != null) {
+            token = token.trim();
+        }
         editor.putString(PREF_API_URL, apiUrl);
         editor.putString(PREF_TOKEN, token);
         editor.apply();
