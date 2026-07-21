@@ -5,22 +5,23 @@
       "keywords": [
         "ai", "artificial intelligence", "llm", "gpt", "claude",
         "chatgpt", "openai", "anthropic", "deepseek", "gemini",
-        "agent", "copilot", "machine learning", "model", "neural",
-        "transformer", "rag", "fine-tun", "prompt", "token",
-        "langchain", "llama", "mistral", "qwen"
+        "copilot", "machine learning", "neural", "transformer",
+        "rag", "fine-tun", "prompt", "token", "langchain",
+        "llama", "mistral", "qwen", "diffusion", "multimodal"
       ],
-      "source_types": ["hackernews", "rss", "ossinsight"]
+      "source_types": ["hackernews", "rss"]
     },
     "与我相关的技术链": {
       "keywords": [
-        "mcp", "ink", "queue", "brief", "python", "fastapi",
-        "android", "eink", "kindle", "koreader", "kosp",
-        "sqlite", "rest api", "open source", "gradle",
-        "git", "docker", "linux", "terminal", "cli",
-        "uv", "pip", "pypi", "openapi", "swagger",
-        "rss", "atom", "webhook", "json", "yaml"
+        "mcp", "model context protocol",
+        "tool use", "function calling", "tool calling",
+        "agent framework", "ai agent", "coding agent",
+        "claude code", "codex", "cursor", "aider",
+        "hermes", "open code", "opencode",
+        "inkbrief", "inkqueue", "eink", "kindle", "kosp", "koreader",
+        "fastapi", "webhook", "rsshub"
       ],
-      "source_types": ["github", "rss", "hackernews"]
+      "source_types": ["github", "ossinsight"]
     },
     "机会雷达": {
       "keywords": [
@@ -29,13 +30,14 @@
         "recruit", "hiring", "job", "career",
         "高校招聘", "科研助理", "博士后"
       ],
-      "source_types": ["rss"]
+      "source_types": []
     }
   },
   "follow_sources": [
     { "name": "Simon Willison", "tag": "AI 技术与资讯" },
-    { "name": "V2EX", "tag": "AI 技术与资讯" },
+    { "name": "机器之心", "tag": "AI 技术与资讯" },
     { "name": "HackerNews", "tag": "AI 技术与资讯" },
+    { "name": "V2EX", "tag": "与我相关的技术链" },
     { "name": "阮一峰周刊", "tag": "与我相关的技术链" },
     { "name": "Solidot", "tag": "与我相关的技术链" },
     { "name": "github", "tag": "与我相关的技术链" },

@@ -1,6 +1,9 @@
 """Thompson Sampling bandit for tag weight management."""
 
+from __future__ import annotations
+
 import numpy as np
+
 from config import COLD_START_WEIGHTS
 
 
@@ -28,10 +31,18 @@ class ThompsonSamplingBandit:
         """Draw a sample from the Beta posterior for a given tag.
 
         Uses Laplace smoothing (+1) to avoid 0-probability.
+        Used for deck assembly exploration only.
         """
         likes, skips = self.tag_weights.get(tag, (1, 1))
-        # Beta(alpha, beta) with alpha = likes + 1, beta = skips + 1
         return float(np.random.beta(likes + 1, skips + 1))
+
+    def mean(self, tag: str) -> float:
+        """Deterministic Beta mean: (likes+1)/(likes+skips+2).
+
+        Used for API display / weekly report so weights don't jitter.
+        """
+        likes, skips = self.tag_weights.get(tag, (1, 1))
+        return (likes + 1) / (likes + skips + 2)
 
     def rank_tags(self) -> list[tuple[str, float]]:
         """Rank all tags by their Thompson Sampling score.
@@ -43,10 +54,17 @@ class ThompsonSamplingBandit:
         scores = [(tag, self.sample(tag)) for tag in tags]
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
-    def get_normalized_weights(self) -> dict[str, float]:
-        """Get normalized probability weights (sum to 1) for all tags."""
-        scores = [self.sample(tag) for tag in self.tag_weights]
-        total = sum(scores)
+    def get_display_weights(self) -> dict[str, float]:
+        """Normalized deterministic weights (sum ≈ 1) for UI / weekly."""
+        if not self.tag_weights:
+            return {}
+        means = {tag: self.mean(tag) for tag in self.tag_weights}
+        total = sum(means.values())
         if total <= 0:
-            return {tag: 1.0 / len(scores) for tag in self.tag_weights}
-        return {tag: s / total for tag, s in zip(self.tag_weights.keys(), scores)}
+            n = len(means)
+            return {tag: 1.0 / n for tag in means}
+        return {tag: m / total for tag, m in means.items()}
+
+    def get_normalized_weights(self) -> dict[str, float]:
+        """Alias for display weights (stable). Prefer get_display_weights()."""
+        return self.get_display_weights()

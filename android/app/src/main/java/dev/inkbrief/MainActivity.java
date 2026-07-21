@@ -16,6 +16,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -44,6 +45,11 @@ public class MainActivity extends Activity {
     private int state = STATE_CARD;
     private final Handler handler = new Handler();
 
+    // Progress from server / local (full deck, not just pending list)
+    private int progressTotal = 0;
+    private int progressLiked = 0;
+    private int progressSkipped = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -64,15 +70,12 @@ public class MainActivity extends Activity {
                         float diffX = e2.getX() - e1.getX();
                         float diffY = e2.getY() - e1.getY();
 
-                        // Ignore vertical swipes
                         if (Math.abs(diffY) > Math.abs(diffX)) return false;
                         if (Math.abs(diffX) < 200) return false;
 
                         if (diffX < 0) {
-                            // Swipe left = like
                             handleAction("like");
                         } else {
-                            // Swipe right = skip
                             handleAction("skip");
                         }
                         return true;
@@ -94,6 +97,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        // Flush offline queue when app comes back to foreground.
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                flushPendingActions();
+            }
+        }).start();
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         return gestureDetector.onTouchEvent(event) || super.onTouchEvent(event);
     }
@@ -102,13 +117,11 @@ public class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.WHITE);
 
-        // Card view (fills screen)
         cardView = new CardView(this);
         root.addView(cardView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Confirmation overlay (white bg, centered text)
         confirmationText = new TextView(this);
         confirmationText.setBackgroundColor(Color.WHITE);
         confirmationText.setGravity(Gravity.CENTER);
@@ -119,7 +132,6 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Done screen
         doneLayout = buildDoneView();
         doneLayout.setVisibility(View.GONE);
         root.addView(doneLayout, new FrameLayout.LayoutParams(
@@ -160,7 +172,6 @@ public class MainActivity extends Activity {
         });
         layout.addView(refreshBtn);
 
-        // Add some spacing
         TextView spacer = new TextView(this);
         spacer.setHeight(pad);
         layout.addView(spacer);
@@ -180,15 +191,50 @@ public class MainActivity extends Activity {
 
     private void loadCards() {
         String today = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
-        cards = cardRepository.getAllCards(today);
+        List<Card> all = cardRepository.getAllCards(today);
+        cards = filterPending(all);
+        recomputeLocalProgress(all);
 
         if (cards != null && !cards.isEmpty()) {
             showCard(0);
+        } else if (all != null && !all.isEmpty()) {
+            // All cards already liked/skipped locally.
+            showDone();
         } else {
             showEmpty();
         }
 
         doSync();
+    }
+
+    private static List<Card> filterPending(List<Card> all) {
+        List<Card> out = new ArrayList<Card>();
+        if (all == null) return out;
+        for (Card c : all) {
+            if (c != null && c.isPending()) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    private void recomputeLocalProgress(List<Card> all) {
+        int liked = 0;
+        int skipped = 0;
+        int total = all != null ? all.size() : 0;
+        if (all != null) {
+            for (Card c : all) {
+                String s = c.getStatus();
+                if ("liked".equals(s)) {
+                    liked++;
+                } else if ("skipped".equals(s)) {
+                    skipped++;
+                }
+            }
+        }
+        progressTotal = total;
+        progressLiked = liked;
+        progressSkipped = skipped;
     }
 
     private void showCard(int index) {
@@ -201,7 +247,15 @@ public class MainActivity extends Activity {
         Card card = cards.get(index);
 
         cardView.setCard(card);
-        cardView.setPosition(index, cards.size());
+        // Show remaining pending count; full deck total if known.
+        int remaining = cards.size();
+        int shownTotal = progressTotal > 0 ? progressTotal : remaining;
+        int shownPos = (progressLiked + progressSkipped) + index + 1;
+        if (shownPos > shownTotal) {
+            shownPos = index + 1;
+            shownTotal = remaining;
+        }
+        cardView.setPosition(shownPos - 1, shownTotal);
         cardView.setVisibility(View.VISIBLE);
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.GONE);
@@ -221,18 +275,11 @@ public class MainActivity extends Activity {
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
 
-        int liked = 0;
-        int skipped = 0;
-        int total = cards != null ? cards.size() : 0;
-        if (cards != null) {
-            for (Card c : cards) {
-                String s = c.getStatus();
-                if ("liked".equals(s)) {
-                    liked++;
-                } else if ("skipped".equals(s)) {
-                    skipped++;
-                }
-            }
+        int total = progressTotal;
+        int liked = progressLiked;
+        int skipped = progressSkipped;
+        if (total <= 0 && cards != null) {
+            total = cards.size() + liked + skipped;
         }
         statsText.setText("\u603B\u8BA1: " + total
                 + "   \u559C\u6B22: " + liked
@@ -245,7 +292,6 @@ public class MainActivity extends Activity {
 
         state = STATE_CONFIRMATION;
 
-        // Show confirmation
         if ("like".equals(action)) {
             confirmationText.setText("\u2713  \u559C\u6B22");
         } else {
@@ -254,28 +300,42 @@ public class MainActivity extends Activity {
         confirmationText.setVisibility(View.VISIBLE);
         cardView.setVisibility(View.GONE);
 
-        // Update local status immediately
         final String newStatus = "like".equals(action) ? "liked" : "skipped";
         card.setStatus(newStatus);
         cardRepository.updateStatus(card.getId(), newStatus);
 
-        // Post to server in background
+        if ("like".equals(action)) {
+            progressLiked++;
+        } else {
+            progressSkipped++;
+        }
+
+        // Always enqueue first so offline is never lost; remove on success.
+        cardRepository.enqueueAction(card.getId(), action);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
+                    boolean ok;
                     if ("like".equals(action)) {
-                        syncClient.likeCard(card.getId());
+                        ok = syncClient.likeCard(card.getId());
                     } else {
-                        syncClient.skipCard(card.getId());
+                        ok = syncClient.skipCard(card.getId());
+                    }
+                    if (ok) {
+                        cardRepository.removePendingAction(card.getId(), action);
+                        // Drop opposite action if any (mutex on client too).
+                        String other = "like".equals(action) ? "skip" : "like";
+                        cardRepository.removePendingAction(card.getId(), other);
+                    } else {
+                        cardRepository.bumpPendingTries(card.getId(), action);
                     }
                 } catch (Exception e) {
-                    // Offline - status already saved locally
+                    cardRepository.bumpPendingTries(card.getId(), action);
                 }
             }
         }).start();
 
-        // After delay, show next card
         handler.removeCallbacksAndMessages(null);
         handler.postDelayed(new Runnable() {
             @Override
@@ -291,22 +351,61 @@ public class MainActivity extends Activity {
         startActivity(intent);
     }
 
+    private void flushPendingActions() {
+        List<CardRepository.PendingAction> pending = cardRepository.getPendingActions();
+        for (CardRepository.PendingAction pa : pending) {
+            if (pa.tries >= 10) {
+                cardRepository.removePendingAction(pa.cardId, pa.action);
+                continue;
+            }
+            try {
+                boolean ok;
+                if ("like".equals(pa.action)) {
+                    ok = syncClient.likeCard(pa.cardId);
+                } else {
+                    ok = syncClient.skipCard(pa.cardId);
+                }
+                if (ok) {
+                    cardRepository.removePendingAction(pa.cardId, pa.action);
+                    String other = "like".equals(pa.action) ? "skip" : "like";
+                    cardRepository.removePendingAction(pa.cardId, other);
+                } else {
+                    cardRepository.bumpPendingTries(pa.cardId, pa.action);
+                }
+            } catch (Exception e) {
+                cardRepository.bumpPendingTries(pa.cardId, pa.action);
+                break; // likely offline; stop flushing
+            }
+        }
+    }
+
     private void doSync() {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                // Push offline likes/skips before pulling deck.
+                flushPendingActions();
+
                 try {
-                    final List<Card> freshCards = syncClient.fetchTodayCards();
-                    if (freshCards != null) {
-                        cardRepository.insertOrUpdate(freshCards);
+                    final SyncClient.TodayResult result = syncClient.fetchToday();
+                    if (result != null) {
+                        cardRepository.insertOrUpdate(result.cards);
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
                                 String currentId = null;
-                                if (cards != null && currentIndex < cards.size()) {
+                                if (state == STATE_CARD
+                                        && cards != null
+                                        && currentIndex < cards.size()) {
                                     currentId = cards.get(currentIndex).getId();
                                 }
-                                cards = freshCards;
+
+                                progressTotal = result.total;
+                                progressLiked = result.likedToday;
+                                progressSkipped = result.skippedToday;
+
+                                // API already returns pending-only; still filter.
+                                cards = filterPending(result.cards);
                                 int newIndex = 0;
                                 if (currentId != null) {
                                     for (int i = 0; i < cards.size(); i++) {
@@ -317,24 +416,43 @@ public class MainActivity extends Activity {
                                     }
                                 }
                                 if (cards.isEmpty()) {
-                                    showEmpty();
-                                } else if (state == STATE_DONE) {
-                                    showDone();
-                                } else {
-                                    showCard(newIndex);
+                                    if (result.total > 0
+                                            && (result.likedToday + result.skippedToday) >= result.total) {
+                                        showDone();
+                                    } else {
+                                        showEmpty();
+                                    }
+                                } else if (state == STATE_DONE || state == STATE_CARD) {
+                                    if (currentId == null) {
+                                        showCard(0);
+                                    } else {
+                                        showCard(newIndex);
+                                    }
                                 }
-                                String msg = "\u5DF2\u540C\u6B65 " + cards.size() + " \u6761";
+                                String msg = "\u5DF2\u540C\u6B65 " + cards.size() + " \u6761\u5F85\u5212"
+                                        + " / \u603B " + result.total;
                                 Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show();
                             }
                         });
                     }
-                } catch (Exception e) {
+                } catch (final Exception e) {
+                    final String toast;
+                    if (e instanceof SyncClient.SyncException) {
+                        SyncClient.SyncException se = (SyncClient.SyncException) e;
+                        if (se.code == 401) {
+                            toast = "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5 Token";
+                        } else if (se.code == 0) {
+                            toast = "\u7F51\u7EDC\u4E0D\u53EF\u7528\uFF0C\u4F7F\u7528\u672C\u5730\u6570\u636E";
+                        } else {
+                            toast = "\u540C\u6B65\u5931\u8D25 HTTP " + se.code;
+                        }
+                    } else {
+                        toast = "\u540C\u6B65\u5931\u8D25\uFF0C\u4F7F\u7528\u672C\u5730\u6570\u636E";
+                    }
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            Toast.makeText(MainActivity.this,
-                                    "\u540C\u6B65\u5931\u8D25\uFF0C\u4F7F\u7528\u672C\u5730\u6570\u636E",
-                                    Toast.LENGTH_SHORT).show();
+                            Toast.makeText(MainActivity.this, toast, Toast.LENGTH_SHORT).show();
                         }
                     });
                 }

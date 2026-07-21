@@ -42,11 +42,14 @@ Windows 电脑（每天开机一次）
 │
 ├── android/                    # InkBrief Android App (Java, minSdk 19)
 │
-├── tools/jdk/                  # 便携版 JDK 11 (Temurin)
+├── tools/
+│    ├── jdk-11.0.31+11/        # 便携版 JDK 11 (Temurin)
+│    └── jdk-17.0.14+7/         # 便携版 JDK 17 (Android 构建用)
 │
 ├── references/
 │    └── tag-rules.json         # 关键词规则
 │
+├── .agent-workflow             # Agent Orchestrator 标记
 ├── start.bat                   # 一键启动
 └── README.md
 ```
@@ -90,10 +93,10 @@ uv run horizon
 ### 3. 构建 Android APK
 
 ```bash
-set JAVA_HOME=D:\3_Code_Projects\InkBrief\tools\jdk-11.0.31+11
+set JAVA_HOME=D:\3_Code_Projects\InkBrief\tools\jdk-17.0.14+7
 set ANDROID_HOME=D:\path\to\android-sdk
 cd android
-gradlew assembleDebug
+D:\3_Code_Projects\InkBrief\.tools\gradle-8.9\bin\gradle assembleDebug --no-daemon
 ```
 
 APK 位置：`android/app/build/outputs/apk/debug/app-debug.apk`
@@ -119,6 +122,49 @@ start.bat
 | `/v1/config/tags` | GET | 标签权重状态 |
 | `/webhook/horizon` | POST | 接收 Horizon webhook |
 
+### 请求示例
+
+```bash
+# 获取今日卡组
+curl -s http://127.0.0.1:8720/v1/cards/today -H "X-InkBrief-Token: dev-token"
+
+# 喜欢卡片
+curl -s -X POST http://127.0.0.1:8720/v1/cards/{id}/like -H "X-InkBrief-Token: dev-token"
+
+# 模拟 Horizon 推送
+curl -s -X POST http://127.0.0.1:8720/webhook/horizon \
+  -H "Content-Type: application/json" \
+  -d '{"date":"2026-07-10","message_kind":"overview","important_items":3}'
+```
+
+### 响应示例
+
+`GET /v1/cards/today`:
+```json
+{
+  "date": "2026-07-10",
+  "cards": [
+    {
+      "position": 1,
+      "tag": "AI 技术与资讯",
+      "title": "Claude Code 正式支持 MCP 协议",
+      "source": "Simon Willison · rss",
+      "ai_score": 8.5,
+      "summary": "Anthropic 宣布 Claude Code 正式支持 MCP 协议。",
+      "reason": "AI 领域动态（关键词：claude）"
+    }
+  ],
+  "total": 4,
+  "liked_today": 0,
+  "skipped_today": 0,
+  "tag_weights": {
+    "AI 技术与资讯": 0.41,
+    "与我相关的技术链": 0.32,
+    "机会雷达": 0.28
+  }
+}
+```
+
 ## 标签系统
 
 三条内容轨道，通过 Thompson Sampling 自动学习你的偏好：
@@ -134,8 +180,8 @@ start.bat
 ## 环境要求
 
 - Python 3.11+（通过 uv 管理）
-- JDK 11（便携版已自带）
-- Android SDK（build-tools, platform android-35）
+- JDK 17（便携版已自带：`tools/jdk-17.0.14+7/`）
+- Android SDK（build-tools 35.0.0, platform android-35）
 - Windows（启动脚本基于 batch）
 
 ## 致谢

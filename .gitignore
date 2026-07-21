@@ -4,13 +4,20 @@ __pycache__/
 *.egg-info/
 .venv/
 inkbrief.db
+_verify_tmp.db
 backend.log
+pipeline.log
+backend.pid
 
 # Android
 android/.gradle/
 android/app/build/
 android/build/
 android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradlew
+android/gradlew.bat
+android/gradle.properties
 *.apk
 *.aab
 
@@ -19,28 +26,20 @@ android/local.properties
 *.iml
 .vscode/
 
-# Tools
-tools/jdk/*.zip
+# Tools (portable JDK zips + extracted JDKs)
+tools/*.zip
 tools/jdk-*/
-!tools/jdk/.gitkeep
+tools/jdk/
+tools/temurin-*/
 
 # Environment
 .env
 horizon/.env
+backend/.env
 *.log
+local.properties
 
-# Android build
-android/app/build/
-android/.gradle/
-android/gradle/wrapper/gradle-wrapper.jar
-android/gradlew
-android/gradlew.bat
-android/gradle.properties
-android/local.properties
-
-# Tools JDK (portable, large)
-tools/jdk-*/
-tools/*.zip
-
-# Gradle from InkQueue (reference)
+# Gradle / local caches
 .tools/
+.pipeline-checkpoint.json
+.orchestrator-progress.md

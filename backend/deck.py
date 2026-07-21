@@ -2,12 +2,17 @@
 
 Given today's content items and tag weights, assemble a deck of
 max_cards items using Thompson Sampling for tag selection.
+
+Supports stable re-assembly: previously liked/skipped cards keep their
+slots; only empty/pending slots are refilled from the pending pool.
 """
 
-import random
+from __future__ import annotations
+
 from collections import defaultdict
+
 from bandit import ThompsonSamplingBandit
-from config import MAX_CARDS_PER_DAY, MIN_CARDS_PER_DAY, EXPLORATION_RATIO
+from config import EXPLORATION_RATIO, MAX_CARDS_PER_DAY, MIN_CARDS_PER_DAY
 
 
 def assemble_daily_deck(
@@ -16,66 +21,107 @@ def assemble_daily_deck(
     max_cards: int = MAX_CARDS_PER_DAY,
     min_cards: int = MIN_CARDS_PER_DAY,
     exploration_ratio: float = EXPLORATION_RATIO,
+    previous_deck: list[dict] | None = None,
 ) -> list[dict]:
     """
     Assemble a daily card deck using Thompson Sampling.
 
     Strategy:
-    1. Rank tags by Thompson Sampling score
-    2. Allocate card slots proportionally to tag weights
-    3. Reserve exploration_ratio slots for lower-weighted tags
-    4. Fill remaining slots from highest-weight tags
-    5. Within each tag, pick highest AI score items first
-
-    Returns:
-        List of content items, ordered by tag weight (highest first),
-        then by AI score within each tag.
+    1. Prefer never-seen (pending) items only for *new* slots.
+    2. If previous_deck is provided (same day re-finalize), keep
+       liked/skipped cards in their previous order, then fill remaining
+       slots from the pending pool (no re-surface of already-swiped ids).
+    3. Rank tags by Thompson Sampling score for new slot allocation.
+    4. Within each tag, pick highest AI score items first.
     """
     if not today_items:
-        return []
+        return list(previous_deck or [])[:max_cards]
 
-    if len(today_items) <= min_cards:
-        # Not enough items — return all sorted by AI score
-        return sorted(today_items, key=lambda x: x.get("ai_score") or 0, reverse=True)
+    items_by_id = {item["id"]: item for item in today_items if item.get("id")}
 
-    # Group items by tag
+    # --- Stable path: preserve already-feedback cards from previous deck ---
+    kept: list[dict] = []
+    kept_ids: set[str] = set()
+    if previous_deck:
+        for prev in previous_deck:
+            pid = prev.get("id")
+            if not pid:
+                continue
+            live = items_by_id.get(pid) or prev
+            status = (live.get("status") or prev.get("status") or "pending").strip()
+            if status in {"liked", "skipped"}:
+                merged = dict(live)
+                # Prefer deck_tag / tag from previous for position continuity
+                if prev.get("deck_tag"):
+                    merged["deck_tag"] = prev["deck_tag"]
+                if prev.get("tag") and not merged.get("tag"):
+                    merged["tag"] = prev["tag"]
+                kept.append(merged)
+                kept_ids.add(pid)
+
+    candidates = [
+        item
+        for item in today_items
+        if (item.get("status") or "pending") == "pending"
+        and item.get("id") not in kept_ids
+    ]
+
+    remaining_slots = max(0, max_cards - len(kept))
+    if remaining_slots == 0:
+        return kept[:max_cards]
+
+    if not candidates:
+        return kept[:max_cards]
+
+    if len(kept) + len(candidates) <= min_cards:
+        extra = sorted(
+            candidates,
+            key=lambda x: x.get("ai_score") or 0,
+            reverse=True,
+        )[:remaining_slots]
+        return (kept + extra)[:max_cards]
+
+    new_cards = _assemble_from_pool(
+        candidates,
+        tag_weights,
+        max_cards=remaining_slots,
+        exploration_ratio=exploration_ratio,
+    )
+    return (kept + new_cards)[:max_cards]
+
+
+def _assemble_from_pool(
+    pool: list[dict],
+    tag_weights: dict[str, tuple[int, int]],
+    max_cards: int,
+    exploration_ratio: float,
+) -> list[dict]:
     items_by_tag: dict[str, list[dict]] = defaultdict(list)
-    for item in today_items:
+    for item in pool:
         tag = item.get("tag", "AI 技术与资讯")
         items_by_tag[tag].append(item)
 
-    # Sort items within each tag by AI score descending
     for tag in items_by_tag:
         items_by_tag[tag].sort(key=lambda x: x.get("ai_score") or 0, reverse=True)
 
-    # Rank tags using Thompson Sampling
     bandit = ThompsonSamplingBandit(tag_weights)
     ranked_tags = bandit.rank_tags()
+    if not ranked_tags:
+        return sorted(pool, key=lambda x: x.get("ai_score") or 0, reverse=True)[:max_cards]
 
-    # Allocate card slots
-    deck = []
-    num_tags = len(ranked_tags)
-    if num_tags == 0:
-        return []
-
-    # Calculate exploration slots
     exploration_slots = max(1, int(max_cards * exploration_ratio))
     exploitation_slots = max_cards - exploration_slots
 
-    # Use ranked tag scores to allocate exploitation slots
     total_score = max(sum(s for _, s in ranked_tags), 0.01)
     tag_slots: dict[str, int] = {}
 
-    for i, (tag, score) in enumerate(ranked_tags):
+    for tag, score in ranked_tags:
         if score <= 0:
             tag_slots[tag] = 0
             continue
-        # Proportional allocation, ensure each tag gets at least 1 slot
-        # if there are enough max_cards
         raw = int(exploitation_slots * score / total_score)
         tag_slots[tag] = max(raw, 0)
 
-    # Ensure minimum 1 slot for tags that have items, if we have room
     tags_with_items = [t for t, _ in ranked_tags if t in items_by_tag and items_by_tag[t]]
     allocated = sum(tag_slots.values())
     remaining = exploitation_slots - allocated
@@ -84,32 +130,26 @@ def assemble_daily_deck(
             tag_slots[tag] = 1
             remaining -= 1
 
-    # Add exploration slots to tags with fewer items in deck
     if exploration_slots > 0 and tags_with_items:
-        # Give exploration slots to the lowest-weighted tags that have items
-        lowest_tags = [t for t, _ in reversed(ranked_tags) if t in items_by_tag][:exploration_slots]
+        lowest_tags = [
+            t for t, _ in reversed(ranked_tags) if t in items_by_tag
+        ][:exploration_slots]
         for tag in lowest_tags:
-            if tag not in tag_slots:
-                tag_slots[tag] = 0
-            tag_slots[tag] += 1
+            tag_slots[tag] = tag_slots.get(tag, 0) + 1
 
-    # Build deck from tag slots
+    deck: list[dict] = []
     for tag, _ in ranked_tags:
         slot_count = tag_slots.get(tag, 0)
         available = items_by_tag.get(tag, [])
-        selected = available[:slot_count]
-        for item in selected:
-            deck.append(item)
+        deck.extend(available[:slot_count])
 
-    # If we still have room, fill with remaining high-score items
     if len(deck) < max_cards:
         used_ids = {item["id"] for item in deck}
         remaining_items = sorted(
-            [item for item in today_items if item["id"] not in used_ids],
+            [item for item in pool if item["id"] not in used_ids],
             key=lambda x: x.get("ai_score") or 0,
             reverse=True,
         )
         deck.extend(remaining_items[: max_cards - len(deck)])
 
-    # Truncate to max_cards
     return deck[:max_cards]

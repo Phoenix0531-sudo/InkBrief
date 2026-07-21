@@ -29,6 +29,7 @@ class CardModel(BaseModel):
     summary: str
     url: str
     reason: str = ""
+    status: str = "pending"  # pending | liked | skipped
 
 
 class TodayCardsResponse(BaseModel):

@@ -22,6 +22,7 @@ public class CardView extends View {
     private final TextPaint titlePaint;
     private final Paint sourcePaint;
     private final TextPaint reasonPaint;
+    private final TextPaint summaryPaint;
     private final Paint positionPaint;
     private final int paddingPx;
 
@@ -30,10 +31,10 @@ public class CardView extends View {
         setBackgroundColor(Color.WHITE);
 
         paddingPx = (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 24, getResources().getDisplayMetrics());
+                TypedValue.COMPLEX_UNIT_DIP, 18, getResources().getDisplayMetrics());
 
         float titleSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP, 20, getResources().getDisplayMetrics());
+                TypedValue.COMPLEX_UNIT_SP, 18, getResources().getDisplayMetrics());
         titlePaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
         titlePaint.setColor(Color.BLACK);
         titlePaint.setTextSize(titleSize);
@@ -53,6 +54,12 @@ public class CardView extends View {
         reasonPaint.setColor(Color.parseColor("#333333"));
         reasonPaint.setTextSize(reasonSize);
         reasonPaint.setTypeface(Typeface.defaultFromStyle(Typeface.ITALIC));
+
+        float summarySize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP, 14, getResources().getDisplayMetrics());
+        summaryPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        summaryPaint.setColor(Color.BLACK);
+        summaryPaint.setTextSize(summarySize);
 
         float posSize = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP, 13, getResources().getDisplayMetrics());
@@ -94,18 +101,23 @@ public class CardView extends View {
             canvas.translate(paddingPx, y);
             titleLayout.draw(canvas);
             canvas.restore();
-            y += titleLayout.getHeight() + 24;
+            y += titleLayout.getHeight() + 12;
         }
 
-        // Source · Score - centered
+        // Source · Score · Tag - centered
         String sourceText = "";
         if (card.getSource() != null && card.getSource().length() > 0) {
             sourceText = card.getSource();
         }
-        sourceText += " \u00B7 " + String.format("%.1f", card.getAiScore());
+        String tag = card.getTag();
+        if (tag != null && tag.length() > 0) {
+            String shortTag = tag.length() > 6 ? tag.substring(0, 6) + ".." : tag;
+            sourceText += " · " + shortTag;
+        }
+        sourceText += " · " + String.format("%.1f", card.getAiScore());
         float sourceY = y + Math.abs(sourcePaint.ascent());
         canvas.drawText(sourceText, viewWidth / 2.0f, sourceY, sourcePaint);
-        y += sourcePaint.getFontSpacing() + 24;
+        y += sourcePaint.getFontSpacing() + 12;
 
         // Reason paragraph - italic, left-aligned
         String reason = card.getReason();
@@ -117,7 +129,27 @@ public class CardView extends View {
             canvas.translate(paddingPx, y);
             reasonLayout.draw(canvas);
             canvas.restore();
-            y += reasonLayout.getHeight() + 24;
+            y += reasonLayout.getHeight() + 16;
+        }
+
+        // Summary - normal weight, left-aligned, show as much as fits
+        String summary = card.getSummary();
+        if (summary != null && summary.length() > 0) {
+            int maxLines = Math.max(3, (viewHeight - y - 60) / 40);
+            StaticLayout summaryLayout = new StaticLayout(
+                    summary, summaryPaint, contentWidth,
+                    Layout.Alignment.ALIGN_NORMAL, 1.2f, 0, false);
+            int visibleLines = Math.min(summaryLayout.getLineCount(), maxLines);
+            int summaryHeight = 0;
+            for (int i = 0; i < visibleLines; i++) {
+                summaryHeight = summaryLayout.getLineBottom(i);
+            }
+            canvas.save();
+            canvas.clipRect(paddingPx, y, viewWidth - paddingPx, y + summaryHeight);
+            canvas.translate(paddingPx, y);
+            summaryLayout.draw(canvas);
+            canvas.restore();
+            y += summaryHeight + 12;
         }
 
         // Position indicator - bottom-right

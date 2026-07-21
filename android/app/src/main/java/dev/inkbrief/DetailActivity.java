@@ -218,7 +218,6 @@ public class DetailActivity extends Activity {
     }
 
     private void doAction(final String action) {
-        // Update local status
         final String newStatus = "like".equals(action) ? "liked" : "skipped";
         card.setStatus(newStatus);
         cardRepository.updateStatus(card.getId(), newStatus);
@@ -227,18 +226,27 @@ public class DetailActivity extends Activity {
                 "like".equals(action) ? "\u5DF2\u559C\u6B22" : "\u5DF2\u8DF3\u8FC7",
                 Toast.LENGTH_SHORT).show();
 
-        // Post to server in background
+        // Enqueue first so offline is never lost; remove on success.
+        cardRepository.enqueueAction(card.getId(), action);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
+                    boolean ok;
                     if ("like".equals(action)) {
-                        syncClient.likeCard(card.getId());
+                        ok = syncClient.likeCard(card.getId());
                     } else {
-                        syncClient.skipCard(card.getId());
+                        ok = syncClient.skipCard(card.getId());
+                    }
+                    if (ok) {
+                        cardRepository.removePendingAction(card.getId(), action);
+                        String other = "like".equals(action) ? "skip" : "like";
+                        cardRepository.removePendingAction(card.getId(), other);
+                    } else {
+                        cardRepository.bumpPendingTries(card.getId(), action);
                     }
                 } catch (Exception e) {
-                    // Offline - status saved locally
+                    cardRepository.bumpPendingTries(card.getId(), action);
                 }
             }
         }).start();

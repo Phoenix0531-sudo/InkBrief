@@ -1,5 +1,3 @@
 @echo off
-echo Stopping InkBrief Backend...
-taskkill /F /FI "WINDOWTITLE eq python*" 2>nul
-taskkill /F /FI "IMAGENAME eq python.exe" 2>nul
-echo Done.
+cd /d D:\3_Code_Projects\InkBrief
+uv run python pipeline.py --stop

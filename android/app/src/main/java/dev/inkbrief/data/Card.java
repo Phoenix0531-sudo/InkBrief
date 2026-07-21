@@ -19,7 +19,7 @@ public class Card {
     private long cachedAt;
 
     public Card() {
-        this.status = "new";
+        this.status = "pending";
     }
 
     public String getId() { return id; }
@@ -58,6 +58,11 @@ public class Card {
     public long getCachedAt() { return cachedAt; }
     public void setCachedAt(long cachedAt) { this.cachedAt = cachedAt; }
 
+    public boolean isPending() {
+        return status == null || status.length() == 0
+                || "pending".equals(status) || "new".equals(status);
+    }
+
     public JSONObject toJson() {
         JSONObject json = new JSONObject();
         try {
@@ -70,7 +75,7 @@ public class Card {
             json.put("summary", summary != null ? summary : "");
             json.put("url", url != null ? url : "");
             json.put("reason", reason != null ? reason : "");
-            json.put("status", status != null ? status : "new");
+            json.put("status", status != null ? status : "pending");
             json.put("date", date != null ? date : "");
             json.put("cached_at", cachedAt);
         } catch (JSONException e) {
@@ -90,7 +95,11 @@ public class Card {
         card.setSummary(obj.optString("summary", ""));
         card.setUrl(obj.optString("url", ""));
         card.setReason(obj.optString("reason", ""));
-        card.setStatus(obj.optString("status", "new"));
+        String st = obj.optString("status", "pending");
+        if (st == null || st.length() == 0 || "new".equals(st)) {
+            st = "pending";
+        }
+        card.setStatus(st);
         card.setDate(obj.optString("date", ""));
         card.setCachedAt(obj.optLong("cached_at", 0));
         return card;

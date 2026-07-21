@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 public class InkBriefDatabase extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "inkbrief.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     public static final String TABLE_CARDS = "cards";
     public static final String COL_ID = "id";
@@ -22,6 +22,12 @@ public class InkBriefDatabase extends SQLiteOpenHelper {
     public static final String COL_STATUS = "status";
     public static final String COL_DATE = "date";
     public static final String COL_CACHED_AT = "cached_at";
+
+    // Offline feedback queue (like/skip that failed to reach server)
+    public static final String TABLE_PENDING = "pending_actions";
+    public static final String COL_ACTION = "action";
+    public static final String COL_CREATED_AT = "created_at";
+    public static final String COL_TRIES = "tries";
 
     private static final String CREATE_TABLE_CARDS =
         "CREATE TABLE " + TABLE_CARDS + " (" +
@@ -39,6 +45,15 @@ public class InkBriefDatabase extends SQLiteOpenHelper {
         COL_CACHED_AT + " INTEGER" +
         ")";
 
+    private static final String CREATE_TABLE_PENDING =
+        "CREATE TABLE " + TABLE_PENDING + " (" +
+        COL_ID + " TEXT NOT NULL, " +
+        COL_ACTION + " TEXT NOT NULL, " +
+        COL_CREATED_AT + " INTEGER NOT NULL, " +
+        COL_TRIES + " INTEGER DEFAULT 0, " +
+        "PRIMARY KEY (" + COL_ID + ", " + COL_ACTION + ")" +
+        ")";
+
     public InkBriefDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -46,11 +61,13 @@ public class InkBriefDatabase extends SQLiteOpenHelper {
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(CREATE_TABLE_CARDS);
+        db.execSQL(CREATE_TABLE_PENDING);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CARDS);
-        onCreate(db);
+        if (oldVersion < 2) {
+            db.execSQL(CREATE_TABLE_PENDING);
+        }
     }
 }
