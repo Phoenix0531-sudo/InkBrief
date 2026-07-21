@@ -31,8 +31,8 @@ public class MainActivity extends Activity {
     private static final int STATE_CONFIRMATION = 1;
     private static final int STATE_DONE = 2;
     // Kindle e-ink: distance-based swipe (onFling rarely fires).
-    private static final int SWIPE_MIN_PX = 60;
-    private static final int TAP_MAX_PX = 40;
+    private static final int SWIPE_MIN_PX = 50;
+    private static final int TAP_MAX_PX = 45;
 
     private CardView cardView;
     private TextView confirmationText;
@@ -282,6 +282,9 @@ public class MainActivity extends Activity {
         Card card = cards.get(index);
 
         cardView.setCard(card);
+        if (deckDate != null) {
+            cardView.setDeckDate(deckDate);
+        }
         // Show remaining pending count; full deck total if known.
         int remaining = cards.size();
         int shownTotal = progressTotal > 0 ? progressTotal : remaining;
@@ -318,7 +321,7 @@ public class MainActivity extends Activity {
         String dateHint = (deckDate != null && deckDate.length() > 0) ? deckDate : "";
         statsText.setText("\u670D\u52A1\u7AEF\u6CA1\u6709\u5F85\u5212\u5185\u5BB9"
                 + (dateHint.length() > 0 ? "\n\u5361\u7EC4\u65E5\u671F: " + dateHint : "")
-                + "\n\u70B9\u300C\u5237\u65B0\u300D\u91CD\u8BD5");
+                + "\n\u70B9\u300C\u5237\u65B0\u300D\u91CD\u8BD5\uFF0C\u6216\u7B49\u5F85 Horizon \u63A8\u9001");
     }
 
     private void showDone() {
@@ -326,9 +329,6 @@ public class MainActivity extends Activity {
         cardView.setVisibility(View.GONE);
         confirmationText.setVisibility(View.GONE);
         doneLayout.setVisibility(View.VISIBLE);
-        if (doneTitle != null) {
-            doneTitle.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
-        }
 
         int total = progressTotal;
         int liked = progressLiked;
@@ -336,8 +336,24 @@ public class MainActivity extends Activity {
         if (total <= 0 && cards != null) {
             total = cards.size() + liked + skipped;
         }
+
+        // Prefer "card pack finished" wording over calendar "today"
+        // when server deck date may lag the device clock.
+        String calendarToday = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+        boolean isCalendarToday = deckDate != null && deckDate.equals(calendarToday);
+        if (doneTitle != null) {
+            if (isCalendarToday) {
+                doneTitle.setText("\u2605 \u4ECA\u65E5\u5DF2\u5B8C\u6210");
+            } else if (deckDate != null && deckDate.length() > 0) {
+                doneTitle.setText("\u2605 \u5361\u7EC4\u5DF2\u5212\u5B8C");
+            } else {
+                doneTitle.setText("\u2605 \u5DF2\u5B8C\u6210");
+            }
+        }
         String dateHint = (deckDate != null && deckDate.length() > 0)
-                ? ("\n\u5361\u7EC4: " + deckDate) : "";
+                ? ("\n\u5361\u7EC4: " + deckDate
+                + (isCalendarToday ? "" : "\n\uff08\u4E0E\u8BBE\u5907\u65E5\u5386\u4E0D\u540C\uff0c\u5C5E\u6B63\u5E38\uff09"))
+                : "";
         statsText.setText("\u603B\u8BA1: " + total
                 + "   \u559C\u6B22: " + liked
                 + "   \u8DF3\u8FC7: " + skipped
@@ -526,7 +542,7 @@ public class MainActivity extends Activity {
                     if (e instanceof SyncClient.SyncException) {
                         SyncClient.SyncException se = (SyncClient.SyncException) e;
                         if (se.code == 401) {
-                            toast = "\u8BA4\u8BC1\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5 Token";
+                            toast = "\u8BA4\u8BC1\u5931\u8D25\uFF1AToken \u9519\u8BEF\uFF0C\u8BF7\u5230\u8BBE\u7F6E\u70B9\u300C\u6062\u590D\u9ED8\u8BA4 Token\u300D";
                         } else if (se.code == 0) {
                             toast = "\u7F51\u7EDC\u4E0D\u53EF\u7528\uFF0C\u4F7F\u7528\u672C\u5730\u6570\u636E";
                         } else {

@@ -48,13 +48,42 @@ public class SyncClient {
 
     private static final String PREF_API_URL = "api_url";
     private static final String PREF_TOKEN = "token";
-    private static final String DEFAULT_API_URL = "http://192.168.10.11:8720";
-    private static final String DEFAULT_TOKEN = "dev-token";
+    public static final String DEFAULT_API_URL = "http://192.168.10.11:8720";
+    public static final String DEFAULT_TOKEN = "dev-token";
 
     private final Context context;
 
     public SyncClient(Context context) {
         this.context = context;
+        sanitizeStoredToken();
+    }
+
+    /** Token must be printable ASCII (no Chinese IME garbage like "dev-他哦肯"). */
+    public static boolean isTokenSafe(String token) {
+        if (token == null || token.length() == 0) {
+            return false;
+        }
+        for (int i = 0; i < token.length(); i++) {
+            char c = token.charAt(i);
+            if (c < 33 || c > 126) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void sanitizeStoredToken() {
+        SharedPreferences prefs = getPrefs();
+        String token = prefs.getString(PREF_TOKEN, DEFAULT_TOKEN);
+        if (token == null) {
+            return;
+        }
+        token = token.trim();
+        if (!isTokenSafe(token)) {
+            prefs.edit().putString(PREF_TOKEN, DEFAULT_TOKEN).apply();
+        } else if (!token.equals(prefs.getString(PREF_TOKEN, null))) {
+            prefs.edit().putString(PREF_TOKEN, token).apply();
+        }
     }
 
     private SharedPreferences getPrefs() {
@@ -67,7 +96,6 @@ public class SyncClient {
             url = DEFAULT_API_URL;
         }
         url = url.trim();
-        // Drop trailing slash so path join stays clean.
         while (url.endsWith("/")) {
             url = url.substring(0, url.length() - 1);
         }
@@ -79,8 +107,13 @@ public class SyncClient {
         if (token == null || token.length() == 0) {
             return DEFAULT_TOKEN;
         }
-        // Kindle soft-keyboard often leaves trailing spaces → 401.
-        return token.trim();
+        token = token.trim();
+        if (!isTokenSafe(token)) {
+            // Auto-heal bad IME input so the app keeps working.
+            getPrefs().edit().putString(PREF_TOKEN, DEFAULT_TOKEN).apply();
+            return DEFAULT_TOKEN;
+        }
+        return token;
     }
 
     public static void saveSettings(Context ctx, String apiUrl, String token) {
@@ -94,6 +127,11 @@ public class SyncClient {
         }
         if (token != null) {
             token = token.trim();
+            if (!isTokenSafe(token)) {
+                token = DEFAULT_TOKEN;
+            }
+        } else {
+            token = DEFAULT_TOKEN;
         }
         editor.putString(PREF_API_URL, apiUrl);
         editor.putString(PREF_TOKEN, token);

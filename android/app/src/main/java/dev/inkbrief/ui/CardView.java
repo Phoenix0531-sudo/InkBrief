@@ -23,10 +23,12 @@ public class CardView extends FrameLayout {
     private final TextView reasonView;
     private final TextView summaryView;
     private final TextView positionView;
+    private final TextView dateView;
 
     private Card card;
     private int currentPosition;
     private int totalCards;
+    private String deckDate = "";
 
     public CardView(Context context) {
         super(context);
@@ -81,6 +83,13 @@ public class CardView extends FrameLayout {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         column.addView(spacer, spacerLp);
 
+        dateView = new TextView(context);
+        dateView.setTextColor(Color.parseColor("#888888"));
+        dateView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        dateView.setGravity(Gravity.START);
+        dateView.setClickable(false);
+        column.addView(dateView, lp());
+
         positionView = new TextView(context);
         positionView.setTextColor(Color.parseColor("#888888"));
         positionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
@@ -100,10 +109,26 @@ public class CardView extends FrameLayout {
     public void setPosition(int current, int total) {
         this.currentPosition = current;
         this.totalCards = total;
+        refreshFooter();
+    }
+
+    public void setDeckDate(String date) {
+        this.deckDate = date == null ? "" : date;
+        refreshFooter();
+    }
+
+    private void refreshFooter() {
         if (totalCards > 0) {
             positionView.setText((currentPosition + 1) + " / " + totalCards);
         } else {
             positionView.setText("");
+        }
+        if (deckDate != null && deckDate.length() > 0) {
+            dateView.setText("\u5361\u7EC4 " + deckDate);
+            dateView.setVisibility(VISIBLE);
+        } else {
+            dateView.setText("");
+            dateView.setVisibility(GONE);
         }
     }
 
@@ -142,9 +167,7 @@ public class CardView extends FrameLayout {
         String summary = card.getSummary();
         summaryView.setText(summary != null ? summary : "");
 
-        if (totalCards > 0) {
-            positionView.setText((currentPosition + 1) + " / " + totalCards);
-        }
+        refreshFooter();
     }
 
     private static String safe(String s) {
