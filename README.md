@@ -11,6 +11,28 @@
 
 它不是 RSS 阅读器，而是"你的私人信息系统的墨水屏终端"。
 
+## Overview (English)
+
+InkBrief is a **private briefing terminal** for Kindle Paperwhite 3 (KOSP Android 4.4.2). It is not an RSS reader.
+
+Pipeline:
+
+1. **Horizon** scrapes / scores / summarizes sources (RSS, HN, GitHub, …).
+2. **InkBrief backend** (FastAPI + SQLite) receives Horizon webhooks, tags items with keyword rules, runs **Thompson Sampling** over tag weights, and builds a daily deck (~10 cards).
+3. **Android app** shows swipe cards on e-ink: left = like, right = skip; feedback updates the bandit.
+
+Design goals: offline-friendly local cache, low memory on API 19, zero fancy animations, honest empty states.
+
+### Backend tests
+
+```bash
+cd backend
+pip install -r requirements.txt   # or: uv sync
+pytest -q tests
+```
+
+Root `tests/` only re-exports pure tag/webhook unit cases so default CI stays light; full suite lives under `backend/tests` and is installed + run by GitHub Actions when present.
+
 ## 核心理念
 
 ```
