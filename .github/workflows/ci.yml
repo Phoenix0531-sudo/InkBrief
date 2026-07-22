@@ -50,6 +50,11 @@ jobs:
           elif [ -d Test ]; then python -m pytest -q Test
           else echo "No tests/ — structure OK"; fi
 
+          if [ -d backend/tests ]; then
+            python -m pytest -q backend/tests
+          fi
+
+
   go-build:
     name: Go build (if present)
     runs-on: ubuntu-latest
