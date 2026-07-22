@@ -101,14 +101,33 @@ uv run python app.py
 curl http://127.0.0.1:8720/v1/health
 ```
 
-### 2. 配置 Horizon
+### 2. Horizon 子模块（钉死版本）
+
+`horizon/` 是上游 [Thysrael/Horizon](https://github.com/Thysrael/Horizon) 的 **git submodule**，父仓钉死 commit：
+
+```
+0414f12b5e6e10faa4eece7eb37a1e70f9c80f4e
+```
+
+**不要**在 `horizon/` 工作树里直接改上游源码当补丁（会把父仓弄成 `0414f12-dirty`）。本地 webhook 配置只写 `horizon/.env`（已 gitignore）。
+
+```bash
+# 首次克隆
+git clone --recurse-submodules https://github.com/Phoenix0531-sudo/InkBrief.git
+# 或已有仓库
+git submodule update --init --recursive
+
+# 若本地误改了 horizon/ 工作树，回到钉死版本：
+git -C horizon reset --hard
+git submodule update --init horizon
+```
 
 编辑 `horizon/data/config.json`，填写 AI provider 配置。
 
-编辑 `horizon/.env`：
+编辑 `horizon/.env`（勿提交）：
 
 ```env
-OPENCODE_GO_API_KEY=your_api_key_here
+# copy keys from horizon/.env.example, plus InkBrief webhook:
 INKBRIEF_WEBHOOK_URL=http://127.0.0.1:8720/webhook/horizon
 ```
 

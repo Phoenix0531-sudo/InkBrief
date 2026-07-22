@@ -39,6 +39,13 @@ backend/.env
 *.log
 local.properties
 
+# Runtime / agent scratch (do not commit)
+.agent-workflow
+backend.pid
+pipeline-run-*.log
+horizon/data/*.db
+horizon/data/cache/
+
 # Gradle / local caches
 .tools/
 .pipeline-checkpoint.json

@@ -1,4 +1,5 @@
 [submodule "horizon"]
 	path = horizon
 	url = https://github.com/Thysrael/Horizon.git
-	branch = main
+	# Pinned by parent gitlink (0414f12). Do not auto-track tip of main.
+	# branch = main
