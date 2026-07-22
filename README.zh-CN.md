@@ -1,79 +1,71 @@
 # InkBrief
 
-**轻量级墨水屏 Agent 同步简报应用**
+**面向 Kindle PW3（KOSP）的墨水屏 Agent 同步简报**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
-轻量级墨水屏 Agent 同步简报应用。
+InkBrief 是 Kindle Paperwhite 3（KOSP Android 4.4.2）上的**私人简报终端**。**不是**通用 RSS 阅读器。
 
-> 作者：[Phoenix0531-sudo](https://github.com/Phoenix0531-sudo) · 欢迎学习、二次开发与**商业使用**，请保留本仓库署名与许可证声明。
+流水线：
 
-## 技术栈
+1. **Horizon**（git 子模块，已钉死）抓取 / 打分 / 摘要  
+2. **InkBrief 后端**（FastAPI + SQLite）收 webhook、打标签、bandit 排序实验、下发卡牌  
+3. **Android 客户端**在墨水屏上展示今日牌组（极简 UI）  
 
-Python · Android · Go/脚本
+## 为什么做这个
 
-## 功能特性
+旧墨水屏 Android 跑不动现代 Agent UI。重活在 PC/手机 Agent；Kindle 只做低内存、安静的简报面。
 
-- 面向墨水屏的低刷新简报流
-- Agent / 管道同步内容
-- Android 端 + 后端服务
+## Horizon 钉扎
 
-## 快速开始
+子模块 commit 固定（见 `.gitmodules`）。不要把 `horizon/` 里的本地脏改当产品补丁。
 
 ```bash
-git clone https://github.com/Phoenix0531-sudo/InkBrief.git
-cd InkBrief
+git submodule update --init --recursive
+cd horizon && git reset --hard 0414f12b5e6e10faa4eece7eb37a1e70f9c80f4e && cd ..
 ```
 
+Horizon 密钥只放 `horizon/.env`（已 ignore）。
+
+## 安装 / 运行（开发）
+
 ```bash
-cd backend  # 或查看 pipeline.py
-pip install -r requirements.txt  # 若存在
+git clone --recurse-submodules https://github.com/Phoenix0531-sudo/InkBrief.git
+cd InkBrief
+pip install -r requirements.txt
+python pipeline.py --help
 python pipeline.py
 ```
 
-更完整的英文说明见 [README.md](README.md)。
-
-## 仓库结构（摘要）
-
-```
-InkBrief/
-├─ .github/
-├─ android/
-├─ backend/
-├─ docs/
-├─ horizon/
-├─ references/
-├─ tools/
-├─ LICENSE
-├─ pipeline.py
-├─ README.md
-├─ README.zh-CN.md
-```
+Windows：`start.bat` / `stop.bat`。
 
 ## 测试
 
+- 根目录 `tests/` — 纯 tag/webhook  
+- `backend/tests/` — 完整 API（需依赖）  
+
 ```bash
-pip install pytest
-pytest -q
+pytest tests/
 ```
 
-仓库内 `tests/` 至少包含 smoke 测试；有完整测试套件时以 CI 为准。
+## 目录结构
 
-## CI
+```
+pipeline.py
+backend/
+android/
+horizon/
+tests/
+```
 
-GitHub Actions（`push` / `pull_request`）会：
+## 明确不做
 
-- 安装依赖（requirements / pyproject）
-- 运行 `pytest`（**硬失败**）
-- 尽力做语法/结构检查
+- 非多租户 SaaS 阅读器  
+- 非未钉扎的 Horizon `main` 试验场  
 
 ## 许可证
 
-[MIT](LICENSE) — 可自由使用、修改、分发与**商用**，需保留版权与许可声明（提及本仓库 / 作者即可）。
-
-## 关于
-
-维护者：[Phoenix0531-sudo](https://github.com/Phoenix0531-sudo)
+MIT。可在署名前提下商用。见 [LICENSE](LICENSE)。
