@@ -1,12 +1,24 @@
-"""Root bridge: load backend/tests/test_core.py into this suite."""
+"""Root bridge: pure backend tag/webhook tests without FastAPI stack."""
 from __future__ import annotations
 
 import importlib.util
 import sys
+import types
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1] / "backend"
 CORE = BACKEND / "tests" / "test_core.py"
+
+PURE = {
+    "test_clean_summary_strips_horizon_wrapper",
+    "test_clean_summary_zh_prefix",
+    "test_clean_summary_strips_tags_footer",
+    "test_derive_source_from_url",
+    "test_derive_source_from_summary_line",
+    "test_tag_follow_source",
+    "test_tag_agent_chain_keywords",
+    "test_tag_keywords_beat_follow_source",
+}
 
 
 def _load():
@@ -15,9 +27,6 @@ def _load():
     try:
         import dotenv  # noqa: F401
     except ImportError:
-        # soft stub if python-dotenv not installed in minimal env
-        import types
-
         stub = types.ModuleType("dotenv")
         stub.load_dotenv = lambda *a, **k: None
         sys.modules["dotenv"] = stub
@@ -29,8 +38,8 @@ def _load():
 
 
 _mod = _load()
-for name in dir(_mod):
-    if name.startswith("test_"):
+for name in PURE:
+    if hasattr(_mod, name):
         globals()[name] = getattr(_mod, name)
 
 
