@@ -1,49 +1,31 @@
 # InkBrief
 
-**Lightweight e-ink agent brief sync: backend plus Android surfaces.**
+**Lightweight e-ink agent brief sync — backend + Android client for high-contrast short digests.**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Short, high-signal digests for low-refresh panels.
-
 ## Preview
 
 ![InkBrief](docs/screenshots/preview.png)
 
-## Features
+## Layout
 
-- E-ink friendly brief presentation
-- backend/ + android/ client tree
-- tools/ helpers and horizon references
-- CI for core checks
+```
+android/ backend/ tools/ horizon/ docs/ tests/
+```
 
 ## Get started
-
-### Install
 
 ```bash
 git clone https://github.com/Phoenix0531-sudo/InkBrief.git
 cd InkBrief
 # follow backend/ and android/ docs
+pytest tests/ 2>/dev/null || true
 ```
-
-### Usage
-
-Run backend services, then connect the Android client. See docs/.
-
-## Project layout
-
-```
-android/  backend/  tools/  horizon/
-```
-
-## Notes
-
-Hardware constraints drive the UX.
 
 ## License
 
-MIT. Free for commercial use with attribution where applicable. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
