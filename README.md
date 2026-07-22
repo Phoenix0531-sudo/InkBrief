@@ -1,24 +1,24 @@
 # InkBrief
 
-**Lightweight e-ink agent brief sync app — backend + Android surfaces.**
+**Lightweight e-ink agent brief sync: backend plus Android surfaces.**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 [![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Lightweight e-ink agent brief sync app — backend + Android surfaces.
+Short, high-signal digests for low-refresh panels.
 
-Designed for constrained displays and agent-generated digests.
+## Preview
 
+![InkBrief](docs/screenshots/preview.png)
 
 ## Features
 
-- 📟 E-ink friendly brief presentation
-- 🔗 Backend + Android client tree
-- 🧰 tools/ + horizon references
-- ✅ CI present for core checks
+- E-ink friendly brief presentation
+- backend/ + android/ client tree
+- tools/ helpers and horizon references
+- CI for core checks
 
 ## Get started
 
@@ -27,23 +27,22 @@ Designed for constrained displays and agent-generated digests.
 ```bash
 git clone https://github.com/Phoenix0531-sudo/InkBrief.git
 cd InkBrief
-# follow backend/ and android/ docs for environment setup
+# follow backend/ and android/ docs
 ```
 
 ### Usage
 
-Run backend services per `backend/`, then connect the Android client. See `docs/`.
+Run backend services, then connect the Android client. See docs/.
 
 ## Project layout
 
 ```
 android/  backend/  tools/  horizon/
-tests/  docs/
 ```
 
 ## Notes
 
-Hardware display constraints drive the UX — prefer short, high-signal briefs.
+Hardware constraints drive the UX.
 
 ## License
 
