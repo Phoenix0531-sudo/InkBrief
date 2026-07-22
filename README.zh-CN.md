@@ -1,71 +1,50 @@
 # InkBrief
 
-**面向 Kindle PW3（KOSP）的墨水屏 Agent 同步简报**
+**轻量墨水屏 Agent 同步简报 — 后端 + Android 界面。**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+[![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-InkBrief 是 Kindle Paperwhite 3（KOSP Android 4.4.2）上的**私人简报终端**。**不是**通用 RSS 阅读器。
+轻量墨水屏 Agent 同步简报 — 后端 + Android 界面。
 
-流水线：
+面向受限屏幕与 Agent 生成摘要。
 
-1. **Horizon**（git 子模块，已钉死）抓取 / 打分 / 摘要  
-2. **InkBrief 后端**（FastAPI + SQLite）收 webhook、打标签、bandit 排序实验、下发卡牌  
-3. **Android 客户端**在墨水屏上展示今日牌组（极简 UI）  
 
-## 为什么做这个
+## 功能
 
-旧墨水屏 Android 跑不动现代 Agent UI。重活在 PC/手机 Agent；Kindle 只做低内存、安静的简报面。
+- 📟 墨水屏友好的简报呈现
+- 🔗 后端 + Android 客户端树
+- 🧰 tools/ + horizon 参考
+- ✅ 核心检查 CI
 
-## Horizon 钉扎
+## 快速开始
 
-子模块 commit 固定（见 `.gitmodules`）。不要把 `horizon/` 里的本地脏改当产品补丁。
-
-```bash
-git submodule update --init --recursive
-cd horizon && git reset --hard 0414f12b5e6e10faa4eece7eb37a1e70f9c80f4e && cd ..
-```
-
-Horizon 密钥只放 `horizon/.env`（已 ignore）。
-
-## 安装 / 运行（开发）
+### 安装
 
 ```bash
-git clone --recurse-submodules https://github.com/Phoenix0531-sudo/InkBrief.git
+git clone https://github.com/Phoenix0531-sudo/InkBrief.git
 cd InkBrief
-pip install -r requirements.txt
-python pipeline.py --help
-python pipeline.py
+# follow backend/ and android/ docs for environment setup
 ```
 
-Windows：`start.bat` / `stop.bat`。
+### 使用
 
-## 测试
+按 `backend/` 启动服务，再连接 Android 客户端。详见 `docs/`。
 
-- 根目录 `tests/` — 纯 tag/webhook  
-- `backend/tests/` — 完整 API（需依赖）  
-
-```bash
-pytest tests/
-```
-
-## 目录结构
+## 项目结构
 
 ```
-pipeline.py
-backend/
-android/
-horizon/
-tests/
+android/  backend/  tools/  horizon/
+tests/  docs/
 ```
 
-## 明确不做
+## 说明
 
-- 非多租户 SaaS 阅读器  
-- 非未钉扎的 Horizon `main` 试验场  
+硬件显示约束驱动 UX — 偏好短而高信噪比的简报。
 
 ## 许可证
 
-MIT。可在署名前提下商用。见 [LICENSE](LICENSE)。
+MIT。在注明出处的前提下可商业使用（以 LICENSE 为准）。详见 [LICENSE](LICENSE)。

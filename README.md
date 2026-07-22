@@ -1,75 +1,50 @@
 # InkBrief
 
-**E-ink agent-synced daily briefing for Kindle PW3 (KOSP)**
+**Lightweight e-ink agent brief sync app — backend + Android surfaces.**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+[![CI](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml/badge.svg)](https://github.com/Phoenix0531-sudo/InkBrief/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-InkBrief is a **private briefing terminal** for Kindle Paperwhite 3 (KOSP Android 4.4.2). It is **not** a generic RSS reader.
+Lightweight e-ink agent brief sync app — backend + Android surfaces.
 
-Pipeline:
+Designed for constrained displays and agent-generated digests.
 
-1. **Horizon** (git submodule, pinned) scrapes / scores / summarizes sources.
-2. **InkBrief backend** (FastAPI + SQLite) receives webhooks, tags items, runs bandit-style ranking experiments, serves cards.
-3. **Android client** on the e-ink device shows today’s deck with extreme UI simplicity.
 
-## Why this exists
+## Features
 
-Old e-ink Androids cannot run modern agent UIs. The phone/PC agent does the heavy work; the Kindle only renders a calm, low-RAM briefing surface.
+- 📟 E-ink friendly brief presentation
+- 🔗 Backend + Android client tree
+- 🧰 tools/ + horizon references
+- ✅ CI present for core checks
 
-## Horizon pin
+## Get started
 
-Submodule commit is pinned (see `.gitmodules`). Do **not** treat dirty edits inside `horizon/` as product patches.
-
-```bash
-git submodule update --init --recursive
-# if horizon is dirty:
-cd horizon && git reset --hard 0414f12b5e6e10faa4eece7eb37a1e70f9c80f4e && cd ..
-```
-
-Local Horizon secrets stay in `horizon/.env` (ignored).
-
-## Install / run (dev)
+### Install
 
 ```bash
-git clone --recurse-submodules https://github.com/Phoenix0531-sudo/InkBrief.git
+git clone https://github.com/Phoenix0531-sudo/InkBrief.git
 cd InkBrief
-pip install -r requirements.txt
-# backend env: copy backend/.env.example → backend/.env
-python pipeline.py --help
-python pipeline.py              # backend + horizon + verify (typical day path)
-python pipeline.py --backend    # backend only
-python pipeline.py --verify
+# follow backend/ and android/ docs for environment setup
 ```
 
-Windows helpers: `start.bat` / `stop.bat`.
+### Usage
 
-## Tests
-
-- Root `tests/` — pure tag/webhook bridge tests (no full FastAPI boot required)
-- `backend/tests/` — deeper API suite when dependencies are installed
-
-```bash
-pytest tests/
-```
+Run backend services per `backend/`, then connect the Android client. See `docs/`.
 
 ## Project layout
 
 ```
-pipeline.py
-backend/            # FastAPI app
-android/            # e-ink client
-horizon/            # pinned submodule
-tests/
+android/  backend/  tools/  horizon/
+tests/  docs/
 ```
 
-## What this is not
+## Notes
 
-- Not a multi-tenant SaaS reader
-- Not a fork playground for unpinned Horizon `main`
+Hardware display constraints drive the UX — prefer short, high-signal briefs.
 
 ## License
 
-MIT. Free for commercial use with attribution. See [LICENSE](LICENSE).
+MIT. Free for commercial use with attribution where applicable. See [LICENSE](LICENSE).
