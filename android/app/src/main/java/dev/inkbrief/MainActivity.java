@@ -215,6 +215,16 @@ public class MainActivity extends Activity {
         });
         layout.addView(settingsBtn);
 
+        Button reviewBtn = new Button(this);
+        reviewBtn.setText("\u672C\u5468\u56DE\u987E");
+        reviewBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, ReviewActivity.class));
+            }
+        });
+        layout.addView(reviewBtn);
+
         return layout;
     }
 

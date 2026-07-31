@@ -206,6 +206,11 @@ public class SyncClient {
         return httpRequest("GET", path, null);
     }
 
+    /** Public raw GET for any endpoint — used by ReviewActivity. */
+    public String getRaw(String path) throws Exception {
+        return httpGet(path);
+    }
+
     private String httpPost(String path) throws Exception {
         return httpRequest("POST", path, "");
     }

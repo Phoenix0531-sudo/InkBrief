@@ -10,9 +10,49 @@ slots; only empty/pending slots are refilled from the pending pool.
 from __future__ import annotations
 
 from collections import defaultdict
+from itertools import cycle
 
 from bandit import ThompsonSamplingBandit
 from config import EXPLORATION_RATIO, MAX_CARDS_PER_DAY, MIN_CARDS_PER_DAY
+
+MAX_PER_SOURCE = 3  # diversity cap: same source_name max N cards in deck
+
+
+def _interleave_by_tag(deck: list[dict]) -> list[dict]:
+    """Reorder so adjacent cards have different tags where possible.
+
+    Round-robin pulls from each tag group, highest-priority tag first.
+    """
+    by_tag: dict[str, list[dict]] = defaultdict(list)
+    for card in deck:
+        by_tag[card.get("tag", "")].append(card)
+    # Tags in order of group size (largest first for fair interleave)
+    sorted_tags = sorted(by_tag.keys(), key=lambda t: len(by_tag[t]), reverse=True)
+    result: list[dict] = []
+    pools = [by_tag[t] for t in sorted_tags]
+    while any(pools):
+        for pool in pools:
+            if pool:
+                result.append(pool.pop(0))
+    return result
+
+
+def _cap_source_diversity(deck: list[dict], max_per_source: int = MAX_PER_SOURCE) -> list[dict]:
+    """Limit cards from the same source_name to max_per_source.
+
+    Keeps highest AI-scored items from each source.
+    """
+    source_counts: dict[str, int] = defaultdict(int)
+    result: list[dict] = []
+    # deck is already sorted by tag then ai_score desc; preserve that order
+    for card in deck:
+        sn = (card.get("source_name") or card.get("source") or "").strip()
+        if not sn:
+            sn = "unknown"
+        if source_counts[sn] < max_per_source:
+            result.append(card)
+            source_counts[sn] += 1
+    return result
 
 
 def assemble_daily_deck(
@@ -87,7 +127,11 @@ def assemble_daily_deck(
         max_cards=remaining_slots,
         exploration_ratio=exploration_ratio,
     )
-    return (kept + new_cards)[:max_cards]
+    # Apply source diversity cap on the new cards (not kept/feedback cards)
+    new_cards = _cap_source_diversity(new_cards)
+    combined = (kept + new_cards)[:max_cards]
+    # Interleave the combined deck so adjacent cards differ in tag where possible
+    return _interleave_by_tag(combined)
 
 
 def _assemble_from_pool(

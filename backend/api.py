@@ -17,6 +17,7 @@ from database import (
     get_deck_for_display,
     get_item_by_id,
     get_today_progress,
+    has_feedback,
 )
 from models import (
     CardModel,
@@ -124,11 +125,24 @@ def _parse_keywords(item: dict) -> list[str]:
 
 
 def _generate_reason(item: dict) -> str:
-    """Personalized one-liner: tag + matched keywords + source."""
+    """Personalized one-liner: tag + matched keywords + summary hint + source."""
     tag = item.get("deck_tag", item.get("tag", "")) or ""
     kws = _parse_keywords(item)
     source = _format_source(item)
     kw_text = "、".join(kws[:3]) if kws else ""
+    summary = (item.get("summary") or "").strip()
+
+    # Extract first sentence/clause from summary for context
+    summary_hint = ""
+    if summary:
+        # Split on Chinese or English sentence boundaries
+        for sep in ["。", "！", "？", ". ", "! ", "? ", "\n"]:
+            parts = summary.split(sep, 1)
+            if len(parts) > 1 and len(parts[0]) > 10:
+                summary_hint = parts[0].strip()
+                break
+        if not summary_hint:
+            summary_hint = summary[:60].strip()
 
     if tag == "机会雷达":
         if kw_text:
@@ -136,14 +150,24 @@ def _generate_reason(item: dict) -> str:
         return "机会雷达：招聘 / 编制 / 岗位类信息"
 
     if tag == "与我相关的技术链":
+        parts = []
         if kw_text:
-            return f"命中你的技术链关键词（{kw_text}）· {source}"
-        return f"与你关注的技术栈相关 · {source}"
+            parts.append(f"命中技术链关键词（{kw_text}）")
+        if summary_hint:
+            parts.append(summary_hint)
+        if not parts:
+            return f"与你关注的技术栈相关 · {source}"
+        return " · ".join(parts)
 
     # AI 技术与资讯
+    parts = []
     if kw_text:
-        return f"AI 动态命中（{kw_text}）· {source}"
-    return f"AI 技术与资讯 · {source}"
+        parts.append(f"AI 动态（{kw_text}）")
+    if summary_hint:
+        parts.append(summary_hint)
+    if not parts:
+        return f"AI 技术与资讯 · {source}"
+    return " · ".join(parts)
 
 
 @router.get("/v1/health", response_model=HealthResponse)
@@ -163,6 +187,17 @@ def get_today_cards(include_done: bool = False):
     """
     today = _today_str()
     deck_date, deck = get_deck_for_display(today)
+    return _build_card_response(deck_date, deck, include_done)
+
+
+@router.get("/v1/cards/{date}", dependencies=[Depends(verify_token)])
+def get_cards_by_date(date: str, include_done: bool = False):
+    """Return a deck for a specific date (history)."""
+    deck_date, deck = get_deck_for_display(date)
+    return _build_card_response(deck_date, deck, include_done)
+
+
+def _build_card_response(deck_date: str, deck: list[dict], include_done: bool):
 
     progress = get_today_progress(deck_date)
     tag_weights_with_scores = _get_tag_weights_with_scores()
@@ -251,7 +286,7 @@ def weekly_review():
 def config_tags():
     return {
         "tags": _get_tag_weights_with_scores(),
-        "cold_start": True,
+        "cold_start": not has_feedback(),
     }
 
 

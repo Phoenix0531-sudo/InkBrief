@@ -32,5 +32,10 @@
             android:name=".SettingsActivity"
             android:label="设置"
             android:theme="@style/InkBriefTheme" />
+
+        <activity
+            android:name=".ReviewActivity"
+            android:label="本周回顾"
+            android:theme="@style/InkBriefTheme" />
     </application>
 </manifest>

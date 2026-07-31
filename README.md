@@ -26,6 +26,15 @@ cd InkBrief
 pytest tests/ 2>/dev/null || true
 ```
 
+## Firewall (Windows)
+
+If the Kindle cannot reach the backend on LAN, add an inbound rule for
+port 8720. Open **PowerShell as Administrator** and run:
+
+```powershell
+New-NetFirewallRule -DisplayName 'InkBrief 8720' -Direction Inbound -Protocol TCP -LocalPort 8720 -Action Allow -Profile Any
+```
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

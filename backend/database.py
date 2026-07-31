@@ -215,6 +215,14 @@ def update_tag_weight(tag: str, likes_delta: int = 0, skips_delta: int = 0) -> N
     conn.close()
 
 
+def has_feedback() -> bool:
+    """Return True if any feedback (like/skip) has been recorded."""
+    conn = get_connection()
+    row = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()
+    conn.close()
+    return row[0] > 0
+
+
 # --- Feedback ---
 
 def feedback_exists(item_id: str, action: str) -> bool:
